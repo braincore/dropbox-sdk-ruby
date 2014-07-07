@@ -1,4 +1,5 @@
 # file organization? this isn't really a class
+# TODO is all this actually obsolete from oauth2 gem?
 
 require 'dropbox/error'
 
