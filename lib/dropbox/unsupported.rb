@@ -1,5 +1,7 @@
 # file organization? this isn't really a class
 # TODO is all this actually obsolete from oauth2 gem?
+# TODO mark all the classes in Tim Morgan's dropbox gem
+# -- how the hell do you deprecate stuff like Array?
 
 require 'dropbox/error'
 

@@ -37,8 +37,7 @@ module Dropbox
       end
 
       def to_s
-        return "#{user_error} (#{error})" if user_error
-        "#{error}"
+        user_error ? "#{user_error} (#{error})" : "#{error}"
       end
     end
 

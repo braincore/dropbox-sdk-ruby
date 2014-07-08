@@ -5,7 +5,7 @@
 Gem::Specification.new do |s|
   s.name = 'dropbox'
 
-  s.version = '1.6.4' # TODO put version info in its own file
+  s.version = '1.6.4' # TODO: put version info in its own file
   s.license = 'MIT'
 
   s.authors = ['Dropbox, Inc.']
@@ -36,9 +36,10 @@ Gem::Specification.new do |s|
     'examples/oauth1_upgrade.rb',
     'examples/search_cache.rb',
     'lib/dropbox.rb',
+    'lib/trusted-certs.crt',
     'lib/dropbox/client.rb',
     'lib/dropbox/error.rb',
     'lib/dropbox/unsupported.rb',
-    'lib/trusted-certs.crt'
+    'lib/dropbox/objects/file.rb'
   ]
 end

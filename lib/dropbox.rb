@@ -1,11 +1,10 @@
 require 'oauth2'
-require 'hashie'
+# require 'hashie' to be replaced because hashie doesn't allow for static code analysis
 require 'multi_json'
-
-
 
 module Dropbox
   module API
+    
     API_SERVER = 'api.dropbox.com'
     API_CONTENT_SERVER = 'api-content.dropbox.com'
     WEB_SERVER = 'www.dropbox.com'

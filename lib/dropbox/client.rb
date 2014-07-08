@@ -1,6 +1,8 @@
 module Dropbox
   module API
 
+    # TODO define endpoints in their own file?
+
     # Use this class to make Dropbox API calls.  You'll need to obtain an OAuth 2 access token
     # first; you can get one using either DropboxOAuth2Flow or DropboxOAuth2FlowNoRedirect.
     class DropboxClient
@@ -8,28 +10,22 @@ module Dropbox
       # Args:
       # * +oauth2_access_token+: Obtained via DropboxOAuth2Flow or DropboxOAuth2FlowNoRedirect.
       # * +locale+: The user's current locale (used to localize error messages).
-      def initialize(oauth2_access_token, root="auto", locale=nil)
-        if oauth2_access_token.is_a?(String)
-          @session = DropboxOAuth2Session.new(oauth2_access_token, locale)
-        elsif oauth2_access_token.is_a?(DropboxSession)
-          @session = oauth2_access_token
-          @session.get_access_token
-          if not locale.nil?
-            @session.locale = locale
-          end
-        else
-          raise ArgumentError.new("oauth2_access_token doesn't have a valid type")
+      def initialize(oauth2_access_token, root = 'auto', locale = nil)
+        unless oauth2_access_token.is_a?(String)
+          fail ArgumentError, "oauth2_access_token must be a String; got #{ oauth2_access_token.inspect }"
         end
-
+        @session = DropboxOAuth2Session.new(oauth2_access_token, locale)
+        
         @root = root.to_s  # If they passed in a symbol, make it a string
 
-        if not ["dropbox","app_folder","auto"].include?(@root)
-          raise ArgumentError.new("root must be :dropbox, :app_folder, or :auto")
+        unless ['dropbox', 'app_folder', 'auto'].include?(@root)
+          fail ArgumentError, 'root must be :dropbox, :app_folder, or :auto'
         end
-        if @root == "app_folder"
-          #App Folder is the name of the access type, but for historical reasons
-          #sandbox is the URL root component that indicates this
-          @root = "sandbox"
+
+        # App Folder is the name of the access type, but for historical reasons
+        # sandbox is the URL root component that indicates this
+        if @root == 'app_folder'
+          @root = 'sandbox'
         end
       end
 
@@ -38,15 +34,15 @@ module Dropbox
       #
       # For a detailed description of what this call returns, visit:
       # https://www.dropbox.com/developers/reference/api#account-info
-      def account_info()
-        response = @session.do_get "/account/info"
+      def account_info
+        response = @session.do_get('/account/info')
         Dropbox::parse_response(response)
       end
 
       # Disables the access token that this +DropboxClient+ is using.  If this call
       # succeeds, further API calls using this object will fail.
       def disable_access_token
-        @session.do_post "/disable_access_token"
+        @session.do_post('/disable_access_token')
         nil
       end
 
@@ -54,11 +50,11 @@ module Dropbox
       # can be used to create an equivalent OAuth 2 access token.  This can be used to
       # upgrade your app's existing access tokens from OAuth 1 to OAuth 2.
       def create_oauth2_access_token
-        if not @session.is_a?(DropboxSession)
-          raise ArgumentError.new("This call requires a DropboxClient that is configured with " \
-                      "an OAuth 1 access token.")
+        unless @session.is_a?(DropboxSession)
+          raise ArgumentError.new('This call requires a DropboxClient that is configured with ' \
+                      'an OAuth 1 access token.')
         end
-        response = @session.do_post "/oauth2/token_from_oauth1"
+        response = @session.do_post('/oauth2/token_from_oauth1')
         Dropbox::parse_response(response)['access_token']
       end
 
@@ -95,16 +91,15 @@ module Dropbox
       # This will upload the "/tmp/test_file" from my computer into the root of my App's app folder
       # and call it "test_file_on_dropbox".
       # The file will not overwrite any pre-existing file.
-      def put_file(to_path, file_obj, overwrite=false, parent_rev=nil)
-        path = "/files_put/#{@root}#{format_path(to_path)}"
+      def put_file(to_path, file_obj, overwrite = false, parent_rev = nil)
+        path = "/files_put/#{ @root }#{ format_path(to_path) }"
         params = {
           'overwrite' => overwrite.to_s,
           'parent_rev' => parent_rev,
         }
 
-        headers = {"Content-Type" => "application/octet-stream"}
-        content_server = true
-        response = @session.do_put path, params, headers, file_obj, content_server
+        headers = { 'Content-Type' => 'application/octet-stream' }
+        response = @session.do_put(path, params, headers, file_obj, content_server = true)
 
         Dropbox::parse_response(response)
       end
@@ -137,37 +132,35 @@ module Dropbox
         #
         # Args:
         # * +chunk_size+: The chunk size for each individual upload.  Defaults to 4MB.
-        def upload(chunk_size=4*1024*1024)
+        def upload(chunk_size = 4 * 1024 * 1024)
           last_chunk = nil
 
           while @offset < @total_size
-            if not last_chunk
-              last_chunk = @file_obj.read(chunk_size)
-            end
+            last_chunk ||= @file_obj.read(chunk_size)
 
-            resp = {}
+            response = {}
             begin
-              resp = Dropbox::parse_response(@client.partial_chunked_upload(last_chunk, @upload_id, @offset))
+              response = Dropbox::parse_response(@client.partial_chunked_upload(last_chunk, @upload_id, @offset))
               last_chunk = nil
             rescue SocketError => e
               raise e
             rescue SystemCallError => e
               raise e
             rescue DropboxError => e
-              raise e if e.http_response.nil? or e.http_response.code[0] == '5'
+              raise e if e.http_response.nil? or e.http_response.code[0] == '5' # 5xx HTTP response
               begin
-                resp = JSON.parse(e.http_response.body)
-                raise DropboxError.new('server response does not have offset key') unless resp.has_key? 'offset'
-              rescue JSON::ParserError
+                response = MultiJson.load(e.http_response.body)
+                raise DropboxError.new('Server response does not have offset key') unless response.has_key?('offset')
+              rescue MultiJson::ParseError
                 raise DropboxError.new("Unable to parse JSON response: #{e.http_response.body}")
               end
             end
 
-            if resp.has_key? 'offset' and resp['offset'] > @offset
-              @offset += (resp['offset'] - @offset) if resp['offset']
+            if response['offset'] && response['offset'] > @offset
+              @offset += (response['offset'] - @offset)
               last_chunk = nil
             end
-            @upload_id = resp['upload_id'] if resp['upload_id']
+            @upload_id = response['upload_id'] if response['upload_id']
           end
         end
 
@@ -196,31 +189,30 @@ module Dropbox
         # *  A Hash with the metadata of file just uploaded.
         #    For a detailed description of what this call returns, visit:
         #    https://www.dropbox.com/developers/reference/api#metadata
-        def finish(to_path, overwrite=false, parent_rev=nil)
+        def finish(to_path, overwrite = false, parent_rev = nil)
           response = @client.commit_chunked_upload(to_path, @upload_id, overwrite, parent_rev)
           Dropbox::parse_response(response)
         end
       end
 
-      def commit_chunked_upload(to_path, upload_id, overwrite=false, parent_rev=nil)  #:nodoc
-        path = "/commit_chunked_upload/#{@root}#{format_path(to_path)}"
-        params = {'overwrite' => overwrite.to_s,
-              'upload_id' => upload_id,
-              'parent_rev' => parent_rev,
-            }
+      def commit_chunked_upload(to_path, upload_id, overwrite = false, parent_rev = nil)  #:nodoc
+        path = "/commit_chunked_upload/#{ @root }#{ format_path(to_path) }"
+        params = { 
+          'overwrite' => overwrite.to_s,
+          'upload_id' => upload_id,
+          'parent_rev' => parent_rev
+        }
         headers = nil
-        content_server = true
-        @session.do_post path, params, headers, content_server
+        @session.do_post(path, params, headers, content_server = true)
       end
 
-      def partial_chunked_upload(data, upload_id=nil, offset=nil)  #:nodoc
+      def partial_chunked_upload(data, upload_id = nil, offset = nil)  #:nodoc
         params = {
           'upload_id' => upload_id,
-          'offset' => offset,
+          'offset' => offset
         }
-        headers = {'Content-Type' => "application/octet-stream"}
-        content_server = true
-        @session.do_put '/chunked_upload', params, headers, data, content_server
+        headers = {'Content-Type' => 'application/octet-stream'}
+        @session.do_put('/chunked_upload', params, headers, data, content_server = true)
       end
 
       # Download a file
@@ -231,9 +223,9 @@ module Dropbox
       #
       # Returns:
       # * The file contents.
-      def get_file(from_path, rev=nil)
+      def get_file(from_path, rev = nil)
         response = get_file_impl(from_path, rev)
-        Dropbox::parse_response(response, raw=true)
+        Dropbox::parse_response(response, raw = true)
       end
 
       # Download a file and get its metadata.
@@ -245,50 +237,12 @@ module Dropbox
       # Returns:
       # * The file contents.
       # * The file metadata as a hash.
-      def get_file_and_metadata(from_path, rev=nil)
+      def get_file_and_metadata(from_path, rev = nil)
         response = get_file_impl(from_path, rev)
-        parsed_response = Dropbox::parse_response(response, raw=true)
+        parsed_response = Dropbox::parse_response(response, raw = true)
         metadata = parse_metadata(response)
         return parsed_response, metadata
       end
-
-      # Download a file (helper method - don't call this directly).
-      #
-      # Args:
-      # * +from_path+: The path to the file to be downloaded
-      # * +rev+: A previous revision value of the file to be downloaded
-      #
-      # Returns:
-      # * The HTTPResponse for the file download request.
-      def get_file_impl(from_path, rev=nil) # :nodoc:
-        path = "/files/#{@root}#{format_path(from_path)}"
-        params = {
-          'rev' => rev,
-        }
-        headers = nil
-        content_server = true
-        @session.do_get path, params, headers, content_server
-      end
-      private :get_file_impl
-
-      # Parses out file metadata from a raw dropbox HTTP response.
-      #
-      # Args:
-      # * +dropbox_raw_response+: The raw, unparsed HTTPResponse from Dropbox.
-      #
-      # Returns:
-      # * The metadata of the file as a hash.
-      def parse_metadata(dropbox_raw_response) # :nodoc:
-        begin
-          raw_metadata = dropbox_raw_response['x-dropbox-metadata']
-          metadata = JSON.parse(raw_metadata)
-        rescue
-          raise DropboxError.new("Dropbox Server Error: x-dropbox-metadata=#{raw_metadata}",
-                       dropbox_raw_response)
-        end
-        return metadata
-      end
-      private :parse_metadata
 
       # Copy a file or folder to a new location.
       #
@@ -306,11 +260,11 @@ module Dropbox
       #   https://www.dropbox.com/developers/reference/api#fileops-copy
       def file_copy(from_path, to_path)
         params = {
-          "root" => @root,
-          "from_path" => format_path(from_path, false),
-          "to_path" => format_path(to_path, false),
+          'root' => @root,
+          'from_path' => format_path(from_path, false),
+          'to_path' => format_path(to_path, false)
         }
-        response = @session.do_post "/fileops/copy", params
+        response = @session.do_post('/fileops/copy', params)
         Dropbox::parse_response(response)
       end
 
@@ -325,11 +279,10 @@ module Dropbox
       #    https://www.dropbox.com/developers/reference/api#fileops-create-folder
       def file_create_folder(path)
         params = {
-          "root" => @root,
-          "path" => format_path(path, false),
+          'root' => @root,
+          'path' => format_path(path, false)
         }
-        response = @session.do_post "/fileops/create_folder", params
-
+        response = @session.do_post('/fileops/create_folder', params)
         Dropbox::parse_response(response)
       end
 
@@ -344,10 +297,10 @@ module Dropbox
       #    https://www.dropbox.com/developers/reference/api#fileops-delete
       def file_delete(path)
         params = {
-          "root" => @root,
-          "path" => format_path(path, false),
+          'root' => @root,
+          'path' => format_path(path, false)
         }
-        response = @session.do_post "/fileops/delete", params
+        response = @session.do_post('/fileops/delete', params)
         Dropbox::parse_response(response)
       end
 
@@ -364,11 +317,11 @@ module Dropbox
       #    https://www.dropbox.com/developers/reference/api#fileops-delete
       def file_move(from_path, to_path)
         params = {
-          "root" => @root,
-          "from_path" => format_path(from_path, false),
-          "to_path" => format_path(to_path, false),
+          'root' => @root,
+          'from_path' => format_path(from_path, false),
+          'to_path' => format_path(to_path, false)
         }
-        response = @session.do_post "/fileops/move", params
+        response = @session.do_post('/fileops/move', params)
         Dropbox::parse_response(response)
       end
 
@@ -395,18 +348,18 @@ module Dropbox
       # * A Hash object with the metadata of the file or folder (and contained files if
       #   appropriate).  For a detailed description of what this call returns, visit:
       #   https://www.dropbox.com/developers/reference/api#metadata
-      def metadata(path, file_limit=25000, list=true, hash=nil, rev=nil, include_deleted=false)
+      def metadata(path, file_limit = 25000, list = true, hash = nil, rev = nil, include_deleted = false)
         params = {
-          "file_limit" => file_limit.to_s,
-          "list" => list.to_s,
-          "include_deleted" => include_deleted.to_s,
-          "hash" => hash,
-          "rev" => rev,
+          'file_limit' => file_limit.to_s,
+          'list' => list.to_s,
+          'include_deleted' => include_deleted.to_s,
+          'hash' => hash,
+          'rev' => rev
         }
 
-        response = @session.do_get "/metadata/#{@root}#{format_path(path)}", params
-        if response.kind_of? Net::HTTPRedirection
-          raise DropboxNotModified.new("metadata not modified")
+        response = @session.do_get("/metadata/#{ @root }#{ format_path(path) }", params)
+        if response.kind_of?(Net::HTTPRedirection)
+          fail DropboxNotModified.new('metadata not modified')
         end
         Dropbox::parse_response(response)
       end
@@ -425,14 +378,14 @@ module Dropbox
       # * A Hash object with a list the metadata of the file or folders matching query
       #   inside path.  For a detailed description of what this call returns, visit:
       #   https://www.dropbox.com/developers/reference/api#search
-      def search(path, query, file_limit=1000, include_deleted=false)
+      def search(path, query, file_limit = 1000, include_deleted = false)
         params = {
           'query' => query,
           'file_limit' => file_limit.to_s,
           'include_deleted' => include_deleted.to_s
         }
 
-        response = @session.do_get "/search/#{@root}#{format_path(path)}", params
+        response = @session.do_get("/search/#{ @root }#{ format_path(path) }", params)
         Dropbox::parse_response(response)
       end
 
@@ -449,12 +402,12 @@ module Dropbox
       #   all matches files (up to rev_limit entries)
       #   For a detailed description of what this call returns, visit:
       #   https://www.dropbox.com/developers/reference/api#revisions
-      def revisions(path, rev_limit=1000)
+      def revisions(path, rev_limit = 1000)
         params = {
           'rev_limit' => rev_limit.to_s
         }
 
-        response = @session.do_get "/revisions/#{@root}#{format_path(path)}", params
+        response = @session.do_get("/revisions/#{ @root }#{ format_path(path) }", params
         Dropbox::parse_response(response)
       end
 
@@ -473,7 +426,7 @@ module Dropbox
           'rev' => rev.to_s
         }
 
-        response = @session.do_post "/restore/#{@root}#{format_path(path)}", params
+        response = @session.do_post("/restore/#{ @root }#{ format_path(path) }", params)
         Dropbox::parse_response(response)
       end
 
@@ -490,7 +443,7 @@ module Dropbox
       # * A Hash object that looks like the following:
       #      {'url': 'https://dl.dropboxusercontent.com/1/view/abcdefghijk/example', 'expires': 'Thu, 16 Sep 2011 01:01:25 +0000'}
       def media(path)
-        response = @session.do_get "/media/#{@root}#{format_path(path)}"
+        response = @session.do_get("/media/#{ @root }#{ format_path(path) }"
         Dropbox::parse_response(response)
       end
 
@@ -510,8 +463,11 @@ module Dropbox
       #      {'url': 'https://db.tt/c0mFuu1Y', 'expires': 'Tue, 01 Jan 2030 00:00:00 +0000'}
       #   For a detailed description of what this call returns, visit:
       #    https://www.dropbox.com/developers/reference/api#shares
-      def shares(path, short_url=true)
-        response = @session.do_get "/shares/#{@root}#{format_path(path)}", {"short_url"=>short_url}
+      def shares(path, short_url = true)
+        params = {
+          'short_url' => short_url
+        }
+        response = @session.do_get("/shares/#{ @root }#{ format_path(path) }", params)
         Dropbox::parse_response(response)
       end
 
@@ -526,9 +482,9 @@ module Dropbox
       #   for more details. [defaults to large]
       # Returns:
       # * The thumbnail data
-      def thumbnail(from_path, size='large')
+      def thumbnail(from_path, size = 'large')
         response = thumbnail_impl(from_path, size)
-        Dropbox::parse_response(response, raw=true)
+        Dropbox::parse_response(response, raw = true)
       end
 
       # Download a thumbnail for an image along with the image's metadata.
@@ -540,9 +496,9 @@ module Dropbox
       # Returns:
       # * The thumbnail data
       # * The metadata for the image as a hash
-      def thumbnail_and_metadata(from_path, size='large')
+      def thumbnail_and_metadata(from_path, size = 'large')
         response = thumbnail_impl(from_path, size)
-        parsed_response = Dropbox::parse_response(response, raw=true)
+        parsed_response = Dropbox::parse_response(response, raw = true)
         metadata = parse_metadata(response)
         return parsed_response, metadata
       end
@@ -596,36 +552,15 @@ module Dropbox
       # Remember: Dropbox treats file names in a case-insensitive but case-preserving
       # way.  To facilitate this, the _path_ strings above are lower-cased versions of
       # the actual path.  The _metadata_ dicts have the original, case-preserved path.
-      def delta(cursor=nil, path_prefix=nil)
+      def delta(cursor = nil, path_prefix = nil)
         params = {
           'cursor' => cursor,
-          'path_prefix' => path_prefix,
+          'path_prefix' => path_prefix
         }
 
-        response = @session.do_post "/delta", params
+        response = @session.do_post('/delta', params)
         Dropbox::parse_response(response)
       end
-
-      # Download a thumbnail (helper method - don't call this directly).
-      #
-      # Args:
-      # * +from_path+: The path to the file to be thumbnailed.
-      # * +size+: A string describing the desired thumbnail size. See thumbnail()
-      #   for details.
-      #
-      # Returns:
-      # * The HTTPResponse for the thumbnail request.
-      def thumbnail_impl(from_path, size='large') # :nodoc:
-        path = "/thumbnails/#{@root}#{format_path(from_path, true)}"
-        params = {
-          "size" => size
-        }
-        headers = nil
-        content_server = true
-        @session.do_get path, params, headers, content_server
-      end
-      private :thumbnail_impl
-
 
       # Creates and returns a copy ref for a specific file.  The copy ref can be
       # used to instantly copy that file to the Dropbox of another account.
@@ -637,8 +572,7 @@ module Dropbox
       # * A Hash object that looks like the following example:
       #      {"expires"=>"Fri, 31 Jan 2042 21:01:05 +0000", "copy_ref"=>"z1X6ATl6aWtzOGq0c3g5Ng"}
       def create_copy_ref(path)
-        path = "/copy_ref/#{@root}#{format_path(path)}"
-        response = @session.do_get path
+        response = @session.do_get("/copy_ref/#{ @root }#{ format_path(path) }")
         Dropbox::parse_response(response)
       end
 
@@ -652,29 +586,83 @@ module Dropbox
       # Returns:
       # * A hash with the metadata of the new file.
       def add_copy_ref(to_path, copy_ref)
-        params = {'from_copy_ref' => copy_ref,
-              'to_path' => "#{to_path}",
-              'root' => @root}
+        params = {
+          'from_copy_ref' => copy_ref,
+          'to_path' => to_path,
+          'root' => @root
+        }
 
-        response = @session.do_post "/fileops/copy", params
+        response = @session.do_post('/fileops/copy', params)
         Dropbox::parse_response(response)
       end
 
-      #From the oauth spec plus "/".  Slash should not be ecsaped
+      private
+
+      # From the oauth spec plus "/".  Slash should not be ecsaped
       RESERVED_CHARACTERS = /[^a-zA-Z0-9\-\.\_\~\/]/  # :nodoc:
 
-      def format_path(path, escape=true) # :nodoc:
-        path = path.gsub(/\/+/,"/")
+      def format_path(path, escape = true) # :nodoc:
         # replace multiple slashes with a single one
+        path.gsub!(/\/+/, '/')
 
-        path = path.gsub(/^\/?/,"/")
         # ensure the path starts with a slash
+        path.gsub!(/^\/?/, '/')
 
-        path.gsub(/\/?$/,"")
         # ensure the path doesn't end with a slash
+        path.gsub!(/\/?$/, '')
 
-        return URI.escape(path, RESERVED_CHARACTERS) if escape
-        path
+        escape ? URI.escape(path, RESERVED_CHARACTERS) : path
+      end
+
+      # Download a file
+      #
+      # Args:
+      # * +from_path+: The path to the file to be downloaded
+      # * +rev+: A previous revision value of the file to be downloaded
+      #
+      # Returns:
+      # * The HTTPResponse for the file download request.
+      def get_file_impl(from_path, rev = nil) # :nodoc:
+        path = "/files/#{ @root }#{ format_path(from_path) }"
+        params = {
+          'rev' => rev
+        }
+        @session.do_get(path, params, headers = nil, content_server = true)
+      end
+
+      # Parses out file metadata from a raw dropbox HTTP response.
+      #
+      # Args:
+      # * +dropbox_raw_response+: The raw, unparsed HTTPResponse from Dropbox.
+      #
+      # Returns:
+      # * The metadata of the file as a hash.
+      def parse_metadata(dropbox_raw_response) # :nodoc:
+        begin
+          raw_metadata = dropbox_raw_response['x-dropbox-metadata']
+          metadata = MultiJson.load(raw_metadata)
+        rescue
+          raise DropboxError.new("Dropbox Server Error: x-dropbox-metadata=#{ raw_metadata }",
+                                 dropbox_raw_response)
+        end
+        metadata
+      end
+
+      # Download a thumbnail
+      #
+      # Args:
+      # * +from_path+: The path to the file to be thumbnailed.
+      # * +size+: A string describing the desired thumbnail size. See thumbnail()
+      #   for details.
+      #
+      # Returns:
+      # * The HTTPResponse for the thumbnail request.
+      def thumbnail_impl(from_path, size = 'large') # :nodoc:
+        path = "/thumbnails/#{ @root }#{ format_path(from_path) }"
+        params = {
+          "size" => size
+        }
+        @session.do_get(path, params, headers = nil, content_server = true)
       end
 
     end
