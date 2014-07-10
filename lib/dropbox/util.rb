@@ -25,14 +25,6 @@ module Dropbox
         a.length == b.length && a.chars.zip(b.chars).map { |ac, bc| ac == bc }.all?
       end
 
-      def self.verify_ssl_certificate(preverify_ok, ssl_context)
-        unless preverify_ok && ssl_context.error == 0
-          err_msg = "SSL Verification failed -- Preverify: #{ preverify_ok }, Error: #{ ssl_context.error_string } (#{ ssl_context.error })"
-          raise OpenSSL::SSL::SSLError.new(err_msg)
-        end
-        true
-      end
-
     end
   end
 end

@@ -44,7 +44,7 @@ module Dropbox
       end
 
       def finish(query_params)
-        # get_token(code, @redirect_uri)
+        # get_token(code, redirect_uri: @redirect_uri)
       end
 
     end
