@@ -12,7 +12,5 @@ module Dropbox
     API_VERSION = 1 # Version 2? :o
     SDK_VERSION = '1.6.4' # TODO put version info in its own file
 
-    TRUSTED_CERT_FILE = File.join(File.dirname(__FILE__), 'trusted-certs.crt')
-
   end
 end

@@ -25,6 +25,7 @@ module Dropbox
 
       private
 
+      # TODO this is the one part of the client that returns a URL instead of actually making the request. darn
       def get_authorize_url(other_params = {})
         params = {
           'client_id' => @app_key,
@@ -33,45 +34,47 @@ module Dropbox
         }.merge(other_params)
 
         host = Dropbox::API::WEB_SERVER
-        path = "/#{Dropbox::API_VERSION}/oauth2/authorize"
-        params = Dropbox::API::Util::make_query_string(params)
+        path = "/#{ Dropbox::API_VERSION }/oauth2/authorize"
+        params = Dropbox::API::HTTP::make_query_string(params)
 
         "https://#{ host }#{ path }?#{ params }"
       end
 
       def get_token(code, other_params = {})
         if not code.is_a?(String)
-          fail ArgumentError , "code must be a String; got #{ code.inspect }"
+          fail ArgumentError, "code must be a String; got #{ code.inspect }"
         end
 
-        uri = URI.parse("https://#{Dropbox::API_SERVER}/1/oauth2/token")
-        request = Net::HTTP::Post.new(uri.request_uri)
-        client_credentials = @consumer_key + ':' + @consumer_secret
-        request.add_field('Authorization', 'Basic ' + Base64.encode64(client_credentials).chomp("\n"))
+        client_credentials = "#{ @app_key }:#{ @app_secret }"
 
-        params = {
+        method = Net::HTTP::Post
+        host = Dropbox::API::API_SERVER
+        path = '/oauth2/token'
+        params = {}
+        headers = {
+          'Authorization' => "Basic #{ Base64.encode64(client_credentials).chomp("\n") }"
+        }
+        body_params = {
           'grant_type' => 'authorization_code',
           'locale' => @locale,
         }.merge(other_params)
 
-        request.set_form_data(Dropbox::clean_params(params))
+        response = Dropbox::API::HTTP::do_http_request(method, host, path, params, headers, body_params)
 
-        response = Dropbox::do_http(uri, request)
-
-        j = Dropbox::parse_response(response)
+        json = Dropbox::parse_response(response)
         ["token_type", "access_token", "uid"].each { |k|
-          if not j.has_key?(k)
+          if not json.has_key?(k)
             raise DropboxError.new("Bad response from /token: missing \"#{k}\".")
           end
-          if not j[k].is_a?(String)
+          if not json[k].is_a?(String)
             raise DropboxError.new("Bad response from /token: field \"#{k}\" is not a string.")
           end
         }
-        if j["token_type"] != "bearer" and j["token_type"] != "Bearer"
+        if json["token_type"] != "bearer" and json["token_type"] != "Bearer"
           raise DropboxError.new("Bad response from /token: \"token_type\" is \"#{token_type}\".")
         end
 
-        return j['access_token'], j['uid']
+        return json['access_token'], json['uid']
       end
 
     end
