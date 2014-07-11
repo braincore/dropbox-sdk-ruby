@@ -7,10 +7,10 @@ module Dropbox
 
       # TODO add other common methods from PHP doc?
 
-      AUTHORIZE_HOST = "https://#{ DROPBOX::API::WEB_SERVER }"
-      AUTHORIZE_PATH = "/#{ DROPBOX::API::API_VERSION }/oauth2/authorize"
-      TOKEN_HOST = "https://#{ DROPBOX::API::API_SERVER }"
-      TOKEN_PATH = "/#{ DROPBOX::API::API_VERSION }/oauth2/authorize"
+      AUTHORIZE_HOST = "https://#{ Dropbox::API::WEB_SERVER }"
+      AUTHORIZE_PATH = "/#{ Dropbox::API::API_VERSION }/oauth2/authorize"
+      TOKEN_HOST = "https://#{ Dropbox::API::API_SERVER }"
+      TOKEN_PATH = "/#{ Dropbox::API::API_VERSION }/oauth2/authorize"
 
       def oauth2_init(app_key, app_secret, locale = nil)
         unless app_key.is_a?(String)

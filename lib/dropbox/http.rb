@@ -1,5 +1,6 @@
 require 'net/http'
 require 'cgi'
+# CGI.escape is CGI::Util.escape in Ruby 2.1.2 >_>
 
 module Dropbox
   module API
@@ -20,25 +21,13 @@ module Dropbox
       end
 
       def self.do_http_request(method, host, path, params = nil, headers = nil, body = nil) # :nodoc:
-        unless [Net::HTTP::Post, Net::HTTP::Put, Net::HTTP::Get].include?(method)
-          fail ArgumentError, "method must one of Net::HTTP::[Post|Put|Get]; got #{ method.inspect }"
+        unless method.kind_of?(Net::HTTPRequest)
+          fail ArgumentError, "method must subclass Net::HTTPRequest; got #{ method.inspect }"
         end
 
-        http = Net::HTTP.new(host, HTTPS_PORT)
-        set_ssl_settings(http)        
+        # TODO other argument validation?
 
-        params ||= {}
-        path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?#{ make_query_string(params) }"
-        http_request = method.new(path_and_params)
-        http_request.initialize_http_header(headers)
-
-        set_http_body(http_request, body)
-
-        # Additional header. We use this to better understand how developers are using our SDKs.
-        http_request['User-Agent'] =  "OfficialDropboxRubySDK/#{ Dropbox::API::SDK_VERSION }"
-
-        # TODO Add this to session
-        http_request['Authorization'] = "Bearer #{ @access_token }"
+        http, http_request = create_http_request(method, host, path, params, headers, body)
 
         begin
           http.request(http_request)
@@ -90,6 +79,23 @@ module Dropbox
       end
 
       private
+
+      def self.create_http_request(method, host, path, params, headers, body)
+        http = Net::HTTP.new(host, HTTPS_PORT)
+        set_ssl_settings(http)        
+
+        params ||= {}
+        path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?#{ make_query_string(params) }"
+        http_request = method.new(path_and_params)
+        http_request.initialize_http_header(headers)
+
+        set_http_body(http_request, body)
+
+        # Additional header. We use this to better understand how developers are using our SDKs.
+        http_request['User-Agent'] =  "OfficialDropboxRubySDK/#{ Dropbox::API::SDK_VERSION }"
+
+        return http, http_request
+      end
 
       def self.set_ssl_settings(http)
         http.use_ssl = true

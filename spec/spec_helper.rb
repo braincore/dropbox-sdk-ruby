@@ -7,5 +7,3 @@ require_relative '../lib/dropbox/oauth2'
 require_relative '../lib/dropbox/web_auth'
 require_relative '../lib/dropbox/web_auth_no_redirect'
 #require_relative '../lib/dropbox/objects/file'
-
-#require 'yaml' ?

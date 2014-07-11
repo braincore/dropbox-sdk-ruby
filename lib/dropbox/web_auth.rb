@@ -131,7 +131,7 @@ module Dropbox
 
         unless safe_string_equals(csrf_token_from_session, given_csrf_token)
           fail CsrfError, "Expected #{ csrf_token_from_session.inspect }; " \
-                      "got #{ given_csrf_token.inspect }.")
+                      "got #{ given_csrf_token.inspect }."
         end
 
         @session.delete(@csrf_token_session_key)
@@ -149,7 +149,7 @@ module Dropbox
             end
           else
             # All other errors.
-            full_message = error_description.nil? error : "#{ error }: #{ error_description }"
+            full_message = error_description.nil? ? error : "#{ error }: #{ error_description }"
             fail ProviderError, full_message
           end
         end
