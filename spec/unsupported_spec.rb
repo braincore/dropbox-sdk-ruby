@@ -1,5 +1,6 @@
 require 'spec_helper'
 
+=begin
 describe Dropbox::API::DropboxSessionBase do
   describe 'class' do
     it 'should not be used' do
@@ -47,3 +48,4 @@ describe Dropbox::API::DropboxOAuth2FlowNoRedirect do
     end
   end
 end
+=end

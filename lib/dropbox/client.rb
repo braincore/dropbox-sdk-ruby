@@ -1,10 +1,13 @@
 module Dropbox
   module API
 
-    # TODO define endpoints in their own file?
+    # TODO define endpoints in their own file? [nope, code generation will auto-generate part of this file]
+    # TODO add longpoll_delta endpoint? [nope, probably not going to be supported since Rails is typically for servers]
+    # TODO check format_path usage
+    # TODO check module namespacing
 
     # Use this class to make Dropbox API calls.  You'll need to obtain an OAuth 2 access token
-    # first; you can get one using either DropboxOAuth2Flow or DropboxOAuth2FlowNoRedirect.
+    # first; you can get one using either WebAuth or WebAuthNoRedirect.
     class DropboxClient
 
       # Args:
@@ -14,12 +17,12 @@ module Dropbox
         unless oauth2_access_token.is_a?(String)
           fail ArgumentError, "oauth2_access_token must be a String; got #{ oauth2_access_token.inspect }"
         end
-        @session = DropboxOAuth2Session.new(oauth2_access_token, locale)
+        @session = Session.new(oauth2_access_token, locale)
         
         @root = root.to_s  # If they passed in a symbol, make it a string
 
         unless ['dropbox', 'app_folder', 'auto'].include?(@root)
-          fail ArgumentError, 'root must be :dropbox, :app_folder, or :auto'
+          fail ArgumentError, 'root must be "dropbox", "app_folder", or "auto"'
         end
 
         # App Folder is the name of the access type, but for historical reasons
@@ -35,28 +38,29 @@ module Dropbox
       # For a detailed description of what this call returns, visit:
       # https://www.dropbox.com/developers/reference/api#account-info
       def account_info
-        response = @session.do_get('/account/info')
-        Dropbox::parse_response(response)
+        response = @session.do_get(Dropbox::API::API_SERVER, '/account/info')
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Disables the access token that this +DropboxClient+ is using.  If this call
       # succeeds, further API calls using this object will fail.
       def disable_access_token
-        @session.do_post('/disable_access_token')
+        @session.do_post(Dropbox::API::API_SERVER, '/disable_access_token')
         nil
       end
 
+      # TODO this shouldn't be in this version of the SDK?
       # If this +DropboxClient+ was created with an OAuth 1 access token, this method
       # can be used to create an equivalent OAuth 2 access token.  This can be used to
       # upgrade your app's existing access tokens from OAuth 1 to OAuth 2.
-      def create_oauth2_access_token
-        unless @session.is_a?(DropboxSession)
-          raise ArgumentError.new('This call requires a DropboxClient that is configured with ' \
-                      'an OAuth 1 access token.')
-        end
-        response = @session.do_post('/oauth2/token_from_oauth1')
-        Dropbox::parse_response(response)['access_token']
-      end
+      #def create_oauth2_access_token
+      #  unless @session.is_a?(DropboxSession)
+      #    raise ArgumentError.new('This call requires a DropboxClient that is configured with ' \
+      #                'an OAuth 1 access token.')
+      #  end
+      #  response = @session.do_post('/oauth2/token_from_oauth1')
+      #  Dropbox::API::HTTP.parse_response(response)['access_token']
+      #end
 
       # Uploads a file to a server.  This uses the HTTP PUT upload method for simplicity
       #
@@ -97,11 +101,10 @@ module Dropbox
           'overwrite' => overwrite.to_s,
           'parent_rev' => parent_rev,
         }
-
         headers = { 'Content-Type' => 'application/octet-stream' }
-        response = @session.do_put(path, params, headers, file_obj, content_server = true)
 
-        Dropbox::parse_response(response)
+        response = @session.do_put(Dropbox::API::API_CONTENT_SERVER, path, params, headers, file_obj)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Returns a ChunkedUploader object.
@@ -140,7 +143,7 @@ module Dropbox
 
             response = {}
             begin
-              response = Dropbox::parse_response(@client.partial_chunked_upload(last_chunk, @upload_id, @offset))
+              response = Dropbox::API::HTTP.parse_response(@client.partial_chunked_upload(last_chunk, @upload_id, @offset))
               last_chunk = nil
             rescue SocketError => e
               raise e
@@ -152,7 +155,7 @@ module Dropbox
                 response = MultiJson.load(e.http_response.body)
                 raise DropboxError.new('Server response does not have offset key') unless response.has_key?('offset')
               rescue MultiJson::ParseError
-                raise DropboxError.new("Unable to parse JSON response: #{e.http_response.body}")
+                raise DropboxError.new("Unable to parse JSON response: #{ e.http_response.body }")
               end
             end
 
@@ -191,7 +194,7 @@ module Dropbox
         #    https://www.dropbox.com/developers/reference/api#metadata
         def finish(to_path, overwrite = false, parent_rev = nil)
           response = @client.commit_chunked_upload(to_path, @upload_id, overwrite, parent_rev)
-          Dropbox::parse_response(response)
+          Dropbox::API::HTTP.parse_response(response)
         end
       end
 
@@ -203,7 +206,7 @@ module Dropbox
           'parent_rev' => parent_rev
         }
         headers = nil
-        @session.do_post(path, params, headers, content_server = true)
+        @session.do_post(Dropbox::API::API_CONTENT_SERVER, path, params, headers)
       end
 
       def partial_chunked_upload(data, upload_id = nil, offset = nil)  #:nodoc
@@ -212,7 +215,7 @@ module Dropbox
           'offset' => offset
         }
         headers = {'Content-Type' => 'application/octet-stream'}
-        @session.do_put('/chunked_upload', params, headers, data, content_server = true)
+        @session.do_put(Dropbox::API::API_CONTENT_SERVER, '/chunked_upload', params, headers, data)
       end
 
       # Download a file
@@ -225,7 +228,7 @@ module Dropbox
       # * The file contents.
       def get_file(from_path, rev = nil)
         response = get_file_impl(from_path, rev)
-        Dropbox::parse_response(response, raw = true)
+        Dropbox::API::HTTP.parse_response(response, raw = true)
       end
 
       # Download a file and get its metadata.
@@ -239,7 +242,7 @@ module Dropbox
       # * The file metadata as a hash.
       def get_file_and_metadata(from_path, rev = nil)
         response = get_file_impl(from_path, rev)
-        parsed_response = Dropbox::parse_response(response, raw = true)
+        parsed_response = Dropbox::API::HTTP.parse_response(response, raw = true)
         metadata = parse_metadata(response)
         return parsed_response, metadata
       end
@@ -264,8 +267,8 @@ module Dropbox
           'from_path' => format_path(from_path, false),
           'to_path' => format_path(to_path, false)
         }
-        response = @session.do_post('/fileops/copy', params)
-        Dropbox::parse_response(response)
+        response = @session.do_post(Dropbox::API::API_SERVER, '/fileops/copy', params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Create a folder.
@@ -282,8 +285,8 @@ module Dropbox
           'root' => @root,
           'path' => format_path(path, false)
         }
-        response = @session.do_post('/fileops/create_folder', params)
-        Dropbox::parse_response(response)
+        response = @session.do_post(Dropbox::API::API_SERVER, '/fileops/create_folder', params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Deletes a file
@@ -300,8 +303,8 @@ module Dropbox
           'root' => @root,
           'path' => format_path(path, false)
         }
-        response = @session.do_post('/fileops/delete', params)
-        Dropbox::parse_response(response)
+        response = @session.do_post(Dropbox::API::API_SERVER, '/fileops/delete', params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Moves a file
@@ -321,8 +324,8 @@ module Dropbox
           'from_path' => format_path(from_path, false),
           'to_path' => format_path(to_path, false)
         }
-        response = @session.do_post('/fileops/move', params)
-        Dropbox::parse_response(response)
+        response = @session.do_post(Dropbox::API::API_SERVER, '/fileops/move', params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Retrives metadata for a file or folder
@@ -356,12 +359,11 @@ module Dropbox
           'hash' => hash,
           'rev' => rev
         }
-
-        response = @session.do_get("/metadata/#{ @root }#{ format_path(path) }", params)
+        response = @session.do_get(Dropbox::API::API_SERVER, "/metadata/#{ @root }#{ format_path(path) }", params)
         if response.kind_of?(Net::HTTPRedirection)
           fail DropboxNotModified.new('metadata not modified')
         end
-        Dropbox::parse_response(response)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Search directory for filenames matching query
@@ -384,9 +386,8 @@ module Dropbox
           'file_limit' => file_limit.to_s,
           'include_deleted' => include_deleted.to_s
         }
-
-        response = @session.do_get("/search/#{ @root }#{ format_path(path) }", params)
-        Dropbox::parse_response(response)
+        response = @session.do_get(Dropbox::API::API_SERVER, "/search/#{ @root }#{ format_path(path) }", params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Retrive revisions of a file
@@ -406,9 +407,8 @@ module Dropbox
         params = {
           'rev_limit' => rev_limit.to_s
         }
-
-        response = @session.do_get("/revisions/#{ @root }#{ format_path(path) }", params
-        Dropbox::parse_response(response)
+        response = @session.do_get(Dropbox::API::API_SERVER, "/revisions/#{ @root }#{ format_path(path) }", params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Restore a file to a previous revision.
@@ -425,9 +425,8 @@ module Dropbox
         params = {
           'rev' => rev.to_s
         }
-
-        response = @session.do_post("/restore/#{ @root }#{ format_path(path) }", params)
-        Dropbox::parse_response(response)
+        response = @session.do_post(Dropbox::API::API_SERVER, "/restore/#{ @root }#{ format_path(path) }", params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Returns a direct link to a media file
@@ -443,8 +442,8 @@ module Dropbox
       # * A Hash object that looks like the following:
       #      {'url': 'https://dl.dropboxusercontent.com/1/view/abcdefghijk/example', 'expires': 'Thu, 16 Sep 2011 01:01:25 +0000'}
       def media(path)
-        response = @session.do_get("/media/#{ @root }#{ format_path(path) }"
-        Dropbox::parse_response(response)
+        response = @session.do_get(Dropbox::API::API_SERVER, "/media/#{ @root }#{ format_path(path) }")
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Get a URL to share a media file
@@ -467,8 +466,8 @@ module Dropbox
         params = {
           'short_url' => short_url
         }
-        response = @session.do_get("/shares/#{ @root }#{ format_path(path) }", params)
-        Dropbox::parse_response(response)
+        response = @session.do_get(Dropbox::API::API_SERVER, "/shares/#{ @root }#{ format_path(path) }", params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Download a thumbnail for an image.
@@ -484,7 +483,7 @@ module Dropbox
       # * The thumbnail data
       def thumbnail(from_path, size = 'large')
         response = thumbnail_impl(from_path, size)
-        Dropbox::parse_response(response, raw = true)
+        Dropbox::API::HTTP.parse_response(response, raw = true)
       end
 
       # Download a thumbnail for an image along with the image's metadata.
@@ -498,7 +497,7 @@ module Dropbox
       # * The metadata for the image as a hash
       def thumbnail_and_metadata(from_path, size = 'large')
         response = thumbnail_impl(from_path, size)
-        parsed_response = Dropbox::parse_response(response, raw = true)
+        parsed_response = Dropbox::API::HTTP.parse_response(response, raw = true)
         metadata = parse_metadata(response)
         return parsed_response, metadata
       end
@@ -557,9 +556,8 @@ module Dropbox
           'cursor' => cursor,
           'path_prefix' => path_prefix
         }
-
-        response = @session.do_post('/delta', params)
-        Dropbox::parse_response(response)
+        response = @session.do_post(Dropbox::API::API_SERVER, '/delta', params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Creates and returns a copy ref for a specific file.  The copy ref can be
@@ -572,8 +570,8 @@ module Dropbox
       # * A Hash object that looks like the following example:
       #      {"expires"=>"Fri, 31 Jan 2042 21:01:05 +0000", "copy_ref"=>"z1X6ATl6aWtzOGq0c3g5Ng"}
       def create_copy_ref(path)
-        response = @session.do_get("/copy_ref/#{ @root }#{ format_path(path) }")
-        Dropbox::parse_response(response)
+        response = @session.do_get(Dropbox::API::API_SERVER, "/copy_ref/#{ @root }#{ format_path(path) }")
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       # Adds the file referenced by the copy ref to the specified path
@@ -591,9 +589,8 @@ module Dropbox
           'to_path' => to_path,
           'root' => @root
         }
-
-        response = @session.do_post('/fileops/copy', params)
-        Dropbox::parse_response(response)
+        response = @session.do_post(Dropbox::API::API_SERVER, '/fileops/copy', params)
+        Dropbox::API::HTTP.parse_response(response)
       end
 
       private
@@ -627,7 +624,7 @@ module Dropbox
         params = {
           'rev' => rev
         }
-        @session.do_get(path, params, headers = nil, content_server = true)
+        @session.do_get(Dropbox::API::API_CONTENT_SERVER, path, params)
       end
 
       # Parses out file metadata from a raw dropbox HTTP response.
@@ -662,7 +659,7 @@ module Dropbox
         params = {
           "size" => size
         }
-        @session.do_get(path, params, headers = nil, content_server = true)
+        @session.do_get(Dropbox::API::API_CONTENT_SERVER, path, params)
       end
 
     end

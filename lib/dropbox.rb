@@ -9,8 +9,8 @@ module Dropbox
     API_CONTENT_SERVER = 'api-content.dropbox.com'
     WEB_SERVER = 'www.dropbox.com'
 
-    API_VERSION = 1 # Version 2? :o
-    SDK_VERSION = '1.6.4' # TODO put version info in its own file
+    API_VERSION = 1 
+    SDK_VERSION = '1.6.4' # TODO put version info in its own file? Version 2? :o
 
   end
 end

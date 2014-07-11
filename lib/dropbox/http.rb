@@ -1,3 +1,6 @@
+require 'net/http'
+require 'cgi'
+
 module Dropbox
   module API
     module HTTP
@@ -5,6 +8,8 @@ module Dropbox
       TRUSTED_CERT_FILE = File.join(File.dirname(__FILE__), 'trusted-certs.crt')
       HTTPS_PORT = 443
 
+      # OpenSSL error codes for certificate validation
+      # See man page for openssl for the complete list.
       CERTIFICATE_SIGNATURE_FAILURE = 7
       CERTIFICATE_SUCCESS = 0
 
@@ -14,7 +19,7 @@ module Dropbox
         }.join('&')
       end
 
-      def self.do_http_request(method, host, path, params = {}, headers = {}, body = {}) # :nodoc:
+      def self.do_http_request(method, host, path, params = nil, headers = nil, body = nil) # :nodoc:
         unless [Net::HTTP::Post, Net::HTTP::Put, Net::HTTP::Get].include?(method)
           fail ArgumentError, "method must one of Net::HTTP::[Post|Put|Get]; got #{ method.inspect }"
         end
@@ -22,20 +27,65 @@ module Dropbox
         http = Net::HTTP.new(host, HTTPS_PORT)
         set_ssl_settings(http)        
 
+        params ||= {}
         path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?#{ make_query_string(params) }"
         http_request = method.new(path_and_params)
         http_request.initialize_http_header(headers)
 
         set_http_body(http_request, body)
 
-        # One more header. We use this to better understand how developers are using our SDKs.
+        # Additional header. We use this to better understand how developers are using our SDKs.
         http_request['User-Agent'] =  "OfficialDropboxRubySDK/#{ Dropbox::API::SDK_VERSION }"
+
+        # TODO Add this to session
+        http_request['Authorization'] = "Bearer #{ @access_token }"
 
         begin
           http.request(http_request)
         rescue OpenSSL::SSL::SSLError => e
           raise DropboxError.new("SSL error connecting to Dropbox.  " +
                   "There may be a problem with the set of certificates in \"#{ TRUSTED_CERT_FILE }\". #{ e.message }")
+        end
+      end
+
+      # Parse response. You probably shouldn't be calling this directly.  This takes responses from the server
+      # and parses them.  It also checks for errors and raises exceptions with the appropriate messages.
+      def self.parse_response(response, raw = false) # :nodoc:
+        # Check for server errors
+        if response.kind_of?(Net::HTTPServerError)
+          fail DropboxError.new("Dropbox Server Error: #{ response } - #{ response.body }", response)
+        
+        # Check for authentication errors
+        elsif response.kind_of?(Net::HTTPUnauthorized)
+          fail DropboxAuthError.new('User is not authenticated.', response)
+        
+        # Check for any other kind of error
+        elsif !response.kind_of?(Net::HTTPSuccess)
+          begin
+            json = MultiJson.load(response.body)
+          rescue
+            fail DropboxError.new("Dropbox Server Error: body = #{ response.body }", response)
+          end
+
+          if json['error']
+            # user_error might be nil; it is internationalized if it exists
+            fail DropboxError.new(json['error'], response, json['user_error'])
+          else
+            fail DropboxError.new(response.body, response)
+          end
+        end
+
+        # Return the raw body for file content API endpoints
+        if raw
+          response.body
+
+        # Assume it is JSON otherwise
+        else
+          begin
+            MultiJson.load(response.body)
+          rescue MultiJson::ParseError
+            raise DropboxError.new("Unable to parse JSON response: #{ response.body }", response)
+          end
         end
       end
 
@@ -84,18 +134,25 @@ module Dropbox
         end
       end
 
-      def set_http_body(http_request, body)
+      def self.set_http_body(http_request, body)
+        return if body.nil?
+
+        # Set query parameters in the body for POST requests
         if body.is_a?(Hash)
           http_request.body = make_query_string(body)
+
+        # Or, set body contents for file uploads
         elsif body.respond_to?(:read)
           if body.respond_to?(:length)
             http_request['Content-Length'] = body.length.to_s
           elsif body.respond_to?(:stat) && body.stat.respond_to?(:size)
-            http_request["Content-Length"] = body.stat.size.to_s
+            http_request['Content-Length'] = body.stat.size.to_s
           else
             fail ArgumentError, "Don't know how to handle 'body' (responds to 'read' but not to 'length' or 'stat.size')."
           end
           http_request.body_stream = body
+
+        # If all else fails, just make it a string
         else
           body = body.to_s
           http_request['Content-Length'] = body.length

@@ -1,16 +1,18 @@
 require 'uri'
+require 'base64'
 
 module Dropbox
   module API
+    module OAuth2
 
-    class OAuth2FlowBase
+      # TODO add other common methods from PHP doc?
 
       AUTHORIZE_HOST = "https://#{ DROPBOX::API::WEB_SERVER }"
       AUTHORIZE_PATH = "/#{ DROPBOX::API::API_VERSION }/oauth2/authorize"
       TOKEN_HOST = "https://#{ DROPBOX::API::API_SERVER }"
       TOKEN_PATH = "/#{ DROPBOX::API::API_VERSION }/oauth2/authorize"
 
-      def initialize(app_key, app_secret, locale = nil)
+      def oauth2_init(app_key, app_secret, locale = nil)
         unless app_key.is_a?(String)
           fail ArgumentError, "app_key must be a String; got #{ app_key.inspect }"
         end
@@ -34,8 +36,8 @@ module Dropbox
         }.merge(other_params)
 
         host = Dropbox::API::WEB_SERVER
-        path = "/#{ Dropbox::API_VERSION }/oauth2/authorize"
-        params = Dropbox::API::HTTP::make_query_string(params)
+        path = "/#{ Dropbox::API::API_VERSION }/oauth2/authorize"
+        params = Dropbox::API::HTTP.make_query_string(params)
 
         "https://#{ host }#{ path }?#{ params }"
       end
@@ -59,19 +61,20 @@ module Dropbox
           'locale' => @locale,
         }.merge(other_params)
 
-        response = Dropbox::API::HTTP::do_http_request(method, host, path, params, headers, body_params)
+        response = Dropbox::API::HTTP.do_http_request(method, host, path, params, headers, body_params)
+        json = Dropbox::API::HTTP.parse_response(response)
+        
+        ['token_type', 'access_token', 'uid'].each do |key|
+          unless json.has_key?(key)
+            fail DropboxError.new("Bad response from /token: missing field \"#{ key }\".")
+          end
+          unless json[key].is_a?(String)
+            fail DropboxError.new("Bad response from /token: field \"#{ key }\" is not a String.")
+          end
+        end
 
-        json = Dropbox::parse_response(response)
-        ["token_type", "access_token", "uid"].each { |k|
-          if not json.has_key?(k)
-            raise DropboxError.new("Bad response from /token: missing \"#{k}\".")
-          end
-          if not json[k].is_a?(String)
-            raise DropboxError.new("Bad response from /token: field \"#{k}\" is not a string.")
-          end
-        }
-        if json["token_type"] != "bearer" and json["token_type"] != "Bearer"
-          raise DropboxError.new("Bad response from /token: \"token_type\" is \"#{token_type}\".")
+        unless json['token_type'].downcase == 'bearer'
+          fail DropboxError.new("Bad response from /token: \"token_type\" is \"#{ token_type }\".")
         end
 
         return json['access_token'], json['uid']

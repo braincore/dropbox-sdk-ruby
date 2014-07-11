@@ -1,43 +1,17 @@
 module Dropbox
   module API
 
-    # Thrown if the redirect URL was missing parameters or if the given parameters were not valid.
-    #
-    # The recommended action is to show an HTTP 400 error page.
-    class BadRequestError < Exception; end
-
-    # Thrown if all the parameters are correct, but there's no CSRF token in the session.  This
-    # probably means that the session expired.
-    #
-    # The recommended action is to redirect the user's browser to try the approval process again.
-    class BadStateError < Exception; end
-
-    # Thrown if the given 'state' parameter doesn't contain the CSRF token from the user's session.
-    # This is blocked to prevent CSRF attacks.
-    #
-    # The recommended action is to respond with an HTTP 403 error page.
-    class CsrfError < Exception; end
-
-    # The user chose not to approve your app.
-    class NotApprovedError < Exception; end
-
-    # Dropbox redirected to your redirect URI with some unexpected error identifier and error
-    # message.
-    class ProviderError < Exception; end
-
-    # TODO above five errors obsolete due to oauth2 gem?
-
     # This is the usual error raised on any Dropbox related Errors
     class DropboxError < RuntimeError
       attr_accessor :http_response, :error, :user_error
-      def initialize(error, http_response=nil, user_error=nil)
+      def initialize(error, http_response = nil, user_error = nil)
         @error = error
         @http_response = http_response
         @user_error = user_error
       end
 
       def to_s
-        user_error ? "#{user_error} (#{error})" : "#{error}"
+        user_error ? "#{ user_error } (#{ error })" : error
       end
     end
 
