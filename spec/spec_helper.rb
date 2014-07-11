@@ -1,3 +1,5 @@
+#require 'webmock/rspec'
+
 require_relative '../lib/dropbox'
 require_relative '../lib/dropbox/client'
 require_relative '../lib/dropbox/error'

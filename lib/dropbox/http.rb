@@ -35,41 +35,41 @@ module Dropbox
 
       # Parse response. You probably shouldn't be calling this directly.  This takes responses from the server
       # and parses them.  It also checks for errors and raises exceptions with the appropriate messages.
-      def self.parse_response(response, raw = false) # :nodoc:
+      def self.parse_response(http_response, raw = false) # :nodoc:
         # Check for server errors
-        if response.kind_of?(Net::HTTPServerError)
-          fail DropboxError.new("Dropbox Server Error: #{ response } - #{ response.body }", response)
-        
+        if http_response.kind_of?(Net::HTTPServerError)
+          fail DropboxError.new("Dropbox Server Error: #{ http_response } - #{ http_response.body }", http_response)
+
         # Check for authentication errors
-        elsif response.kind_of?(Net::HTTPUnauthorized)
-          fail DropboxAuthError.new('User is not authenticated.', response)
-        
+        elsif http_response.kind_of?(Net::HTTPUnauthorized)
+          fail DropboxAuthError.new('User is not authenticated.', http_response)
+
         # Check for any other kind of error
-        elsif !response.kind_of?(Net::HTTPSuccess)
+        elsif !http_response.kind_of?(Net::HTTPSuccess)
           begin
-            json = MultiJson.load(response.body)
+            json = MultiJson.load(http_response.body)
           rescue
-            fail DropboxError.new("Dropbox Server Error: body = #{ response.body }", response)
+            fail DropboxError.new("Dropbox Server Error: body = #{ http_response.body }", http_response)
           end
 
           if json['error']
             # user_error might be nil; it is internationalized if it exists
-            fail DropboxError.new(json['error'], response, json['user_error'])
+            fail DropboxError.new(json['error'], http_response, json['user_error'])
           else
-            fail DropboxError.new(response.body, response)
+            fail DropboxError.new(http_response.body, http_response)
           end
         end
 
         # Return the raw body for file content API endpoints
         if raw
-          response.body
+          http_response.body
 
         # Assume it is JSON otherwise
         else
           begin
-            MultiJson.load(response.body)
+            MultiJson.load(http_response.body)
           rescue MultiJson::ParseError
-            raise DropboxError.new("Unable to parse JSON response: #{ response.body }", response)
+            raise DropboxError.new("Unable to parse JSON response: #{ http_response.body }", http_response)
           end
         end
       end
@@ -82,7 +82,7 @@ module Dropbox
         end
 
         http = Net::HTTP.new(host, HTTPS_PORT)
-        set_ssl_settings(http)        
+        set_ssl_settings(http)
 
         params ||= {}
         path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?#{ make_query_string(params) }"
@@ -164,6 +164,8 @@ module Dropbox
           http_request['Content-Length'] = body.length
           http_request.body = body
         end
+
+        nil
       end
 
       def self.clean_params(params)

@@ -2,6 +2,7 @@ module Dropbox
   module API
 
     # This is the usual error raised on any Dropbox related Errors
+    # TODO http_response is passed in but not used
     class DropboxError < RuntimeError
       attr_accessor :http_response, :error, :user_error
       def initialize(error, http_response = nil, user_error = nil)

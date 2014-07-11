@@ -13,7 +13,8 @@ Gem::Specification.new do |s|
 
   s.add_runtime_dependency 'multi_json'
 
-  s.add_development_dependency 'rspec'
+  s.add_development_dependency 'rspec', '~> 2.2'
+  s.add_development_dependency 'webmock'
 
   s.homepage = 'http://www.dropbox.com/developers/'
   s.summary = 'Dropbox REST API Client.'
