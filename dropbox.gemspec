@@ -12,8 +12,6 @@ Gem::Specification.new do |s|
   s.email = ['support-api@dropbox.com']
 
   s.add_runtime_dependency 'multi_json'
-  s.add_runtime_dependency 'hashie'
-  s.add_runtime_dependency 'oauth2'
 
   s.add_development_dependency 'rspec'
 

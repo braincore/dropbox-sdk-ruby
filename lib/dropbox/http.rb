@@ -21,10 +21,6 @@ module Dropbox
       end
 
       def self.do_http_request(method, host, path, params = nil, headers = nil, body = nil) # :nodoc:
-        unless method.kind_of?(Net::HTTPRequest)
-          fail ArgumentError, "method must subclass Net::HTTPRequest; got #{ method.inspect }"
-        end
-
         # TODO other argument validation?
 
         http, http_request = create_http_request(method, host, path, params, headers, body)
@@ -81,6 +77,10 @@ module Dropbox
       private
 
       def self.create_http_request(method, host, path, params, headers, body)
+        unless method < Net::HTTPRequest
+          fail ArgumentError, "method must subclass Net::HTTPRequest; got #{ method.inspect }"
+        end
+
         http = Net::HTTP.new(host, HTTPS_PORT)
         set_ssl_settings(http)        
 
