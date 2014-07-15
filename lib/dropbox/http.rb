@@ -6,7 +6,7 @@ module Dropbox
   module API
     module HTTP
 
-      TRUSTED_CERT_FILE = File.join(File.dirname(__FILE__), 'trusted-certs.crt')
+      TRUSTED_CERT_FILE = File.join(File.dirname(File.dirname(__FILE__)), 'trusted-certs.crt')
       HTTPS_PORT = 443
 
       # OpenSSL error codes for certificate validation
@@ -20,16 +20,19 @@ module Dropbox
         }.join('&')
       end
 
-      def self.do_http_request(method, host, path, params = nil, headers = nil, body = nil) # :nodoc:
+      def self.do_http_request(method, host, path, params = nil, headers = nil, body = nil, cert_file = nil) # :nodoc:
         # TODO other argument validation?
 
-        http, http_request = create_http_request(method, host, path, params, headers, body)
+        # dependency injection for testing
+        cert_file ||= TRUSTED_CERT_FILE
+
+        http, http_request = create_http_request(method, host, path, params, headers, body, cert_file)
 
         begin
           http.request(http_request)
         rescue OpenSSL::SSL::SSLError => e
           raise DropboxError.new("SSL error connecting to Dropbox.  " +
-                  "There may be a problem with the set of certificates in \"#{ TRUSTED_CERT_FILE }\". #{ e.message }")
+                  "There may be a problem with the set of certificates in \"#{ cert_file }\". #{ e.message }")
         end
       end
 
@@ -76,13 +79,13 @@ module Dropbox
 
       private
 
-      def self.create_http_request(method, host, path, params, headers, body)
+      def self.create_http_request(method, host, path, params = nil, headers = nil, body = nil, cert_file = nil)
         unless method < Net::HTTPRequest
           fail ArgumentError, "method must subclass Net::HTTPRequest; got #{ method.inspect }"
         end
 
         http = Net::HTTP.new(host, HTTPS_PORT)
-        set_ssl_settings(http)
+        set_ssl_settings(http, cert_file)
 
         params ||= {}
         path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?#{ make_query_string(params) }"
@@ -97,10 +100,10 @@ module Dropbox
         return http, http_request
       end
 
-      def self.set_ssl_settings(http)
+      def self.set_ssl_settings(http, cert_file)
         http.use_ssl = true
         http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-        http.ca_file = TRUSTED_CERT_FILE
+        http.ca_file = cert_file.nil? ? TRUSTED_CERT_FILE : cert_file
 
         # SSL protocol and ciphersuite settings are supported starting with version 1.9
         if RUBY_VERSION >= '1.9'

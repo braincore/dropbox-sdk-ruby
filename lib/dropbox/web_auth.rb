@@ -37,7 +37,7 @@ module Dropbox
 
       def initialize(app_key, app_secret, redirect_uri, session, csrf_token_session_key = :dropbox_auth_csrf_token, locale = nil)
         oauth2_init(app_key, app_secret, locale)
-        
+
         unless redirect_uri.is_a?(String)
           fail ArgumentError, "redirect_uri must be a String; got #{ redirect_uri.inspect }"
         end
@@ -85,7 +85,7 @@ module Dropbox
 
         check_request_wellformed(state, error, code)
         url_state = check_csrf_token(state)
-        check_errors(error, error_description)     
+        check_errors(error, error_description)
 
         # If everything went ok, make the network call to get an access token
         access_token, user_id = get_token(code, redirect_uri: @redirect_uri)
@@ -118,7 +118,7 @@ module Dropbox
           fail BadStateError, 'Missing CSRF token in session.'
         end
         if csrf_token_from_session.length != CSRF_TOKEN_LENGTH
-          fail BadRequestError, "CSRF token not correct length: #{ csrf_token_from_session.inspect }"
+          fail "CSRF token not correct length: #{ csrf_token_from_session.inspect }" # RuntimeError
         end
 
         split_pos = state.index('|')

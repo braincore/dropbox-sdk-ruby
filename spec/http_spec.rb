@@ -42,49 +42,49 @@ describe Dropbox::API::HTTP do
 
   describe '.create_http_request' do
     it 'does not accept non-Net::HTTPRequest methods' do
-      expect { Dropbox::API::HTTP.create_http_request("String", 'host', 'path', nil, nil, nil) }.to raise_error(ArgumentError)
+      expect { Dropbox::API::HTTP.create_http_request("String", 'host', 'path') }.to raise_error(ArgumentError)
     end
 
     context 'returns http_request that' do
       it 'accepts Net::HTTP::Get' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path')
         expect(http_request).to be_instance_of(Net::HTTP::Get)
       end
 
       it 'accepts Net::HTTP::Post' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Post, 'host', '/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Post, 'host', '/path')
         expect(http_request).to be_instance_of(Net::HTTP::Post)
       end
 
       it 'accepts Net::HTTP::Put' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Put, 'host', '/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Put, 'host', '/path')
         expect(http_request).to be_instance_of(Net::HTTP::Put)
       end
 
       it 'sets path' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/my/test/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/my/test/path')
         expect(http_request.path).to include('/my/test/path')
       end
 
       it 'adds API version' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/my/test/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/my/test/path')
         expect(http_request.path.start_with?("/#{ Dropbox::API::API_VERSION }/my/test/path")).to be true
       end
 
       it 'sets params' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', { 'key1' => 'value1', 'key2' => 'value2' }, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', { 'key1' => 'value1', 'key2' => 'value2' })
         expect(query_cmp(http_request.path.split('?').last, 'key1=value1&key2=value2')).to be true
       end
 
       it 'sets headers' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, { 'key1' => 'value1', 'key2' => 'value2' }, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, { 'key1' => 'value1', 'key2' => 'value2' })
         { 'key1' => 'value1', 'key2' => 'value2' }.each do |key, value|
           expect(http_request[key]).to eq(value)
         end
       end
 
       it 'always adds exactly one header (User-Agent)' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path')
         headers = {}
         http_request.each_header { |key, value| headers[key.downcase] = value }
         expect(headers).to eq({ 'user-agent' => "OfficialDropboxRubySDK/#{ Dropbox::API::SDK_VERSION }" })
@@ -118,17 +118,17 @@ describe Dropbox::API::HTTP do
 
     context 'returns http that' do
       it 'sets host' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path')
         expect(http.address).to eq('host')
       end
 
       it 'uses port 443' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path')
         expect(http.port).to eq(443)
       end
 
       it 'has correct SSL settings' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, nil, nil)
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path')
         expect(http.use_ssl?).to be true
         expect(http.verify_mode).to eq(OpenSSL::SSL::VERIFY_PEER)
         expect(http.ca_file).to eq(Dropbox::API::HTTP::TRUSTED_CERT_FILE)
@@ -156,8 +156,14 @@ describe Dropbox::API::HTTP do
                 'AES128-SHA')
         end
 
+        # TODO add verify_callback check here?
+
       end
 
+      it 'sets custom certificate file' do
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, nil, nil, 'filename')
+        expect(http.ca_file).to eq('filename')
+      end
     end
   end
 
@@ -265,12 +271,42 @@ describe Dropbox::API::HTTP do
     end
   end
 
-  # Not exactly a unit-test.
+  # Not exactly a unit-test. Requires actual internet connections.
+  # TODO Oauth?
   describe 'certificate verification' do
-    # This test might end up platform-dependent. Hopefully it won't.
-    it 'rejects bad certificates from trusted-certs.crt' do
-
+    it 'connects to Dropbox correctly' do
+      expect {
+        Dropbox::API::HTTP.do_http_request(Net::HTTP::Get, Dropbox::API::WEB_SERVER, '/')
+      }.not_to raise_error
     end
+
+    # This test might end up platform-dependent. Hopefully it won't.
+    it 'gets an SSL error if trusted-certs.crt doesn\'t have valid certs' do
+      File.open('test_certs.crt', 'w').close
+      expect {
+        Dropbox::API::HTTP.do_http_request(Net::HTTP::Get, Dropbox::API::WEB_SERVER, '/', nil, nil, nil, 'test_certs.crt')
+      }.to raise_error(Dropbox::API::DropboxError, /SSL error.*test_certs\.crt/)
+      File.delete('test_certs.crt')
+    end
+
+    it 'gets an SSL error on invalid hostname' do
+      expect {
+        Dropbox::API::HTTP.do_http_request(Net::HTTP::Get, 'www.v.dropbox.com', '/')
+      }.to raise_error(Dropbox::API::DropboxError, /SSL error.*www\.v\.dropbox\.com/)
+    end
+
+    it 'gets no error on certified non-Dropbox host' do
+      expect {
+        Dropbox::API::HTTP.do_http_request(Net::HTTP::Get, 'www.digicert.com', '/')
+      }.not_to raise_error
+    end
+
+    it 'gets an SSL error on uncertified host' do
+      expect {
+        Dropbox::API::HTTP.do_http_request(Net::HTTP::Get, 'www.twitter.com', '/')
+      }.to raise_error(Dropbox::API::DropboxError, /SSL error.*trusted-certs\.crt/)
+    end
+
   end
 
 end
