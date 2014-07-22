@@ -8,6 +8,8 @@ require_relative '../lib/dropbox/http'
 require_relative '../lib/dropbox/oauth2'
 require_relative '../lib/dropbox/web_auth'
 require_relative '../lib/dropbox/web_auth_no_redirect'
+require_relative '../lib/dropbox/oauth2/app_info'
+require_relative '../lib/dropbox/client/host_info'
 #require_relative '../lib/dropbox/objects/file'
 
 def make_hash(query)

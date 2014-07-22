@@ -25,13 +25,14 @@ module Dropbox
       end
 
       # TODO Say why I moved all the http building stuff here?
-      def self.do_http_request(method, host, path, params = nil, headers = nil, body = nil, cert_file = nil) # :nodoc:
+      # TODO oof that's a lot of arguments
+      def self.do_http_request(method, host, path, client_identifier, params = nil, headers = nil, body = nil, cert_file = nil) # :nodoc:
         # TODO other argument validation?
 
         # dependency injection for testing
         cert_file ||= TRUSTED_CERT_FILE
 
-        http, http_request = create_http_request(method, host, path, params, headers, body, cert_file)
+        http, http_request = create_http_request(method, host, path, client_identifier, params, headers, body, cert_file)
 
         begin
           http.request(http_request)
@@ -86,7 +87,7 @@ module Dropbox
       # create_http_request not private?
       # private_class_method?
 
-      def self.create_http_request(method, host, path, params = nil, headers = nil, body = nil, cert_file = nil)
+      def self.create_http_request(method, host, path, client_identifier, params = nil, headers = nil, body = nil, cert_file = nil)
         unless method < Net::HTTPRequest
           fail ArgumentError, "method must subclass Net::HTTPRequest; got #{ method.inspect }"
         end
@@ -102,7 +103,7 @@ module Dropbox
         set_http_body(http_request, body)
 
         # Additional header. We use this to better understand how developers are using our SDKs.
-        http_request['User-Agent'] =  "OfficialDropboxRubySDK/#{ Dropbox::API::SDK_VERSION }"
+        http_request['User-Agent'] = "#{ client_identifier } OfficialDropboxRubySDK/#{ Dropbox::API::SDK_VERSION }"
 
         return http, http_request
       end

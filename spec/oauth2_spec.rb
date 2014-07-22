@@ -9,19 +9,22 @@ shared_examples 'OAuth2' do
 
   shared_examples '#oauth2_init' do
     it 'requires app key to be a string' do
+      app_info = Dropbox::API::AppInfo.new(:app_key, 'app_secret')
       expect {
-        auth.oauth2_init(:app_key, 'app_secret')
+        auth.oauth2_init(app_info, 'client_test')
       }.to raise_error(ArgumentError, /app_key/)
     end
 
     it 'requires app secret to be a string' do
+      app_info = Dropbox::API::AppInfo.new('app_key', :app_secret)
       expect {
-        auth.oauth2_init('app_key', :app_secret)
+        auth.oauth2_init(app_info, 'client_test')
       }.to raise_error(ArgumentError, /app_secret/)
     end
 
     it 'defaults locale to nil' do
-      auth.oauth2_init('app_key', 'app_secret')
+      app_info = Dropbox::API::AppInfo.new('app_key', 'app_secret')
+      auth.oauth2_init(app_info, 'client_test')
       expect(auth.locale).to be_nil
     end
   end

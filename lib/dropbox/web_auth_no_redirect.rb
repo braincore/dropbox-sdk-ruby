@@ -4,8 +4,8 @@ module Dropbox
     class WebAuthNoRedirect
       include Dropbox::API::OAuth2
 
-      def initialize(app_key, app_secret, locale = nil)
-        oauth2_init(app_key, app_secret, locale)
+      def initialize(app_info, client_identifier, locale = nil)
+        oauth2_init(app_info, client_identifier, locale)
       end
 
       def start

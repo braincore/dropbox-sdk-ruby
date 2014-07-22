@@ -6,10 +6,10 @@ require 'dropbox/error'
 
 module Dropbox
   module API
-    def self.deprecated
+    def self.unsupported
       fail UnsupportedError, 'TODO: Message about old gem'
     end
-    
+
     #class DropboxSessionBase
     #  def initialize
     #    Dropbox::API::deprecated

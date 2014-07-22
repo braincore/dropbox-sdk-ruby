@@ -37,8 +37,8 @@ module Dropbox
 
       attr_reader :redirect_uri, :session, :csrf_token_session_key
 
-      def initialize(app_key, app_secret, redirect_uri, session, csrf_token_session_key = :dropbox_auth_csrf_token, locale = nil)
-        oauth2_init(app_key, app_secret, locale)
+      def initialize(app_info, client_identifier, redirect_uri, session, csrf_token_session_key = :dropbox_auth_csrf_token, locale = nil)
+        oauth2_init(app_info, client_identifier, locale)
 
         if redirect_uri.nil?
           fail ArgumentError, "No redirect_uri provided. If your app doesn't use a redirect_uri, consider " \

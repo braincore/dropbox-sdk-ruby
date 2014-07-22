@@ -7,23 +7,20 @@ module Dropbox
 
       # TODO add other common methods from PHP doc?
 
-      AUTHORIZE_HOST = "https://#{ Dropbox::API::WEB_SERVER }"
-      AUTHORIZE_PATH = "/#{ Dropbox::API::API_VERSION }/oauth2/authorize"
-      TOKEN_HOST = "https://#{ Dropbox::API::API_SERVER }"
-      TOKEN_PATH = "/#{ Dropbox::API::API_VERSION }/oauth2/authorize"
+      attr_reader :app_key, :app_secret, :locale, :client_identifier
 
-      attr_reader :app_key, :app_secret, :locale
-
-      def oauth2_init(app_key, app_secret, locale = nil)
-        unless app_key.is_a?(String)
+      def oauth2_init(app_info, client_identifier, locale = nil)
+        unless app_info.key.is_a?(String)
           fail ArgumentError, "app_key must be a String; got #{ app_key.inspect }"
         end
-        unless app_secret.is_a?(String)
+        unless app_info.secret.is_a?(String)
           fail ArgumentError, "app_secret must be a String; got #{ app_secret.inspect }"
         end
 
-        @app_key = app_key
-        @app_secret = app_secret
+        @app_key = app_info.key
+        @app_secret = app_info.secret
+        @host_info = app_info.host_info
+        @client_identifier = client_identifier
         @locale = locale
       end
 
@@ -37,7 +34,7 @@ module Dropbox
           'locale' => @locale
         }.merge(other_params)
 
-        host = Dropbox::API::WEB_SERVER
+        host = @host_info.web_server
         path = "/#{ Dropbox::API::API_VERSION }/oauth2/authorize"
         params = Dropbox::API::HTTP.make_query_string(params)
 
@@ -52,7 +49,7 @@ module Dropbox
         client_credentials = "#{ @app_key }:#{ @app_secret }"
 
         method = Net::HTTP::Post
-        host = Dropbox::API::API_SERVER
+        host = @host_info.api_server
         path = '/oauth2/token'
         params = {}
         headers = {
@@ -64,7 +61,7 @@ module Dropbox
           'locale' => @locale,
         }.merge(other_params)
 
-        response = Dropbox::API::HTTP.do_http_request(method, host, path, params, headers, body_params)
+        response = Dropbox::API::HTTP.do_http_request(method, host, path, client_identifier, params, headers, body_params)
         json = Dropbox::API::HTTP.parse_response(response)
 
         ['token_type', 'access_token', 'uid'].each do |key|

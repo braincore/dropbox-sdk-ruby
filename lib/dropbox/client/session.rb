@@ -3,8 +3,9 @@ module Dropbox
 
     class Session
 
-      def initialize(oauth2_access_token, locale)
+      def initialize(oauth2_access_token, client_identitifier, locale)
         @oauth2_token = oauth2_access_token
+        @client_identitifier = client_identitifier
         @locale = locale
       end
 
