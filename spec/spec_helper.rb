@@ -1,4 +1,4 @@
-#require 'webmock/rspec'
+require 'webmock/rspec'
 
 require_relative '../lib/dropbox'
 require_relative '../lib/dropbox/client'
@@ -9,3 +9,12 @@ require_relative '../lib/dropbox/oauth2'
 require_relative '../lib/dropbox/web_auth'
 require_relative '../lib/dropbox/web_auth_no_redirect'
 #require_relative '../lib/dropbox/objects/file'
+
+def make_hash(query)
+  result = {}
+  query.split('&').each do |pair|
+    key, value = pair.split('=', 2)
+    result[key] = value
+  end
+  result
+end

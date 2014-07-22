@@ -35,22 +35,29 @@ module Dropbox
       CSRF_TOKEN_LENGTH = 20
       MAX_STATE_LENGTH = 200
 
+      attr_reader :redirect_uri, :session, :csrf_token_session_key
+
       def initialize(app_key, app_secret, redirect_uri, session, csrf_token_session_key = :dropbox_auth_csrf_token, locale = nil)
         oauth2_init(app_key, app_secret, locale)
 
+        if redirect_uri.nil?
+          fail ArgumentError, "No redirect_uri provided. If your app doesn't use a redirect_uri, consider " \
+              "using WebAuthNoRedirect for OAuth instead."
+        end
         unless redirect_uri.is_a?(String)
           fail ArgumentError, "redirect_uri must be a String; got #{ redirect_uri.inspect }"
         end
 
         # TODO check redirect_uri for localhost/https? [nope?]
-        # TODO add force_reapprove and disable_signup params?
+        # TODO add force_reapprove and disable_signup params? [added in start]
+        # disable signup meant only for iOS apps
 
         @redirect_uri = redirect_uri
         @session = session
         @csrf_token_session_key = csrf_token_session_key
       end
 
-      def start(url_state = nil)
+      def start(url_state = nil, force_reapprove = false)
         # If url_state is provided, it must be a string
         url_state ||= ''
         unless url_state.is_a?(String)
@@ -73,11 +80,16 @@ module Dropbox
         state = url_state.empty? ? csrf_token : "#{ csrf_token }|#{ url_state }"
         @session[@csrf_token_session_key] = csrf_token
 
-        get_authorize_url(redirect_uri: @redirect_uri, state: state)
+        params = {
+          redirect_uri: @redirect_uri,
+          state: state
+        }
+        params.merge!({ force_reapprove: force_reapprove }) if force_reapprove
+
+        get_authorize_url(params)
       end
 
       def finish(query_params)
-
         state = query_params['state']
         error = query_params['error']
         code = query_params['code']

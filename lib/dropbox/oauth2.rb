@@ -12,6 +12,8 @@ module Dropbox
       TOKEN_HOST = "https://#{ Dropbox::API::API_SERVER }"
       TOKEN_PATH = "/#{ Dropbox::API::API_VERSION }/oauth2/authorize"
 
+      attr_reader :app_key, :app_secret, :locale
+
       def oauth2_init(app_key, app_secret, locale = nil)
         unless app_key.is_a?(String)
           fail ArgumentError, "app_key must be a String; got #{ app_key.inspect }"
@@ -19,7 +21,7 @@ module Dropbox
         unless app_secret.is_a?(String)
           fail ArgumentError, "app_secret must be a String; got #{ app_secret.inspect }"
         end
-        
+
         @app_key = app_key
         @app_secret = app_secret
         @locale = locale
@@ -27,7 +29,7 @@ module Dropbox
 
       private
 
-      # TODO this is the one part of the client that returns a URL instead of actually making the request. darn
+      # TODO this is the one part of the entire SDK that returns a URL instead of actually making the request. darn
       def get_authorize_url(other_params = {})
         params = {
           'client_id' => @app_key,
@@ -58,23 +60,24 @@ module Dropbox
         }
         body_params = {
           'grant_type' => 'authorization_code',
+          'code' => code,
           'locale' => @locale,
         }.merge(other_params)
 
         response = Dropbox::API::HTTP.do_http_request(method, host, path, params, headers, body_params)
         json = Dropbox::API::HTTP.parse_response(response)
-        
+
         ['token_type', 'access_token', 'uid'].each do |key|
           unless json.has_key?(key)
-            fail DropboxError.new("Bad response from /token: missing field \"#{ key }\".")
+            fail DropboxError.new("Bad response from /token: missing field \"#{ key }\"")
           end
           unless json[key].is_a?(String)
-            fail DropboxError.new("Bad response from /token: field \"#{ key }\" is not a String.")
+            fail DropboxError.new("Bad response from /token: field \"#{ key }\" must be a String; got #{ json[key].inspect }")
           end
         end
 
         unless json['token_type'].downcase == 'bearer'
-          fail DropboxError.new("Bad response from /token: \"token_type\" is \"#{ token_type }\".")
+          fail DropboxError.new("Bad response from /token: \"token_type\" must be \"bearer\"; got \"#{ json['token_type'] }\"")
         end
 
         return json['access_token'], json['uid']

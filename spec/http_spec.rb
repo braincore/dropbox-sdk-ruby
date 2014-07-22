@@ -1,29 +1,17 @@
 require 'spec_helper'
 
-def query_cmp(query1, query2)
-  query1.split('&').sort == query2.split('&').sort
-end
-
 describe Dropbox::API::HTTP do
-  describe '.clean_params' do
+
+  describe '.make_query_string' do
     it 'removes nil values' do
-      before = { 'a' => nil, 'b' => 'not nil' }
-      after = { 'b' => 'not nil' }
-      expect(Dropbox::API::HTTP.clean_params(before)).to eq(after)
+      before = { 'a' => nil, 'b' => 'not_nil' }
+      expect(Dropbox::API::HTTP.make_query_string(before)).to eq('b=not_nil')
     end
 
     it 'converts everything to strings' do
       before = { :a => :b, 'c' => :d, :e => 'f' }
       after = { 'a' => 'b', 'c' => 'd', 'e' => 'f' }
-      expect(Dropbox::API::HTTP.clean_params(before)).to eq(after)
-    end
-  end
-
-  describe '.make_query_string' do
-    it 'makes a valid query string' do
-      params = { 'a' => 'b', :c => :d, 'e' => :f }
-      query = 'a=b&c=d&e=f'
-      expect(query_cmp(Dropbox::API::HTTP.make_query_string(params), query)).to be true
+      expect(make_hash(Dropbox::API::HTTP.make_query_string(before))).to eq(make_hash('a=b&c=d&e=f'))
     end
 
     it 'escapes special characters' do
@@ -40,6 +28,8 @@ describe Dropbox::API::HTTP do
     # TODO Mock?
   end
 
+  # Decided to test this method instead of do_http_request because it allows more fine-grained
+  # unit testing than having to make the entire http request.
   describe '.create_http_request' do
     it 'does not accept non-Net::HTTPRequest methods' do
       expect { Dropbox::API::HTTP.create_http_request("String", 'host', 'path') }.to raise_error(ArgumentError)
@@ -67,13 +57,13 @@ describe Dropbox::API::HTTP do
       end
 
       it 'adds API version' do
-        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/my/test/path')
-        expect(http_request.path.start_with?("/#{ Dropbox::API::API_VERSION }/my/test/path")).to be true
+        http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '')
+        expect(http_request.path.start_with?("/#{ Dropbox::API::API_VERSION }")).to be true
       end
 
       it 'sets params' do
         http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', { 'key1' => 'value1', 'key2' => 'value2' })
-        expect(query_cmp(http_request.path.split('?').last, 'key1=value1&key2=value2')).to be true
+        expect(make_hash(http_request.path.split('?').last)).to eq(make_hash('key1=value1&key2=value2'))
       end
 
       it 'sets headers' do
@@ -92,7 +82,7 @@ describe Dropbox::API::HTTP do
 
       it 'sets the body as a query given a hash' do
         http, http_request = Dropbox::API::HTTP.create_http_request(Net::HTTP::Get, 'host', '/path', nil, nil, { key1: 'value1', key2: 'value2' })
-        expect(query_cmp(http_request.body, 'key1=value1&key2=value2')).to be true
+        expect(make_hash(http_request.body)).to eq(make_hash('key1=value1&key2=value2'))
       end
 
       it 'sets raw body contents from file' do
@@ -212,44 +202,42 @@ describe Dropbox::API::HTTP do
       end
     end
 
+    # TODO do regex matching instead of exact match on the error message?
+    # TODO should I even match the error message?
+    # TODO use webmock instead of stubbing HTTPResponse classes?
     it 'throws DropboxError on Net::HTTPServerError' do
       response = MyException1.new('Custom message')
-      expected = Dropbox::API::DropboxError.new("Dropbox Server Error: #{ response } - #{ response.body }")
       expect {
         Dropbox::API::HTTP.parse_response(response)
-      }.to raise_error(Dropbox::API::DropboxError, expected.to_s)
+      }.to raise_error(Dropbox::API::DropboxError)
     end
 
     it 'throws DropboxAuthError on Net::HTTPUnauthorized' do
       response = MyException2.new('Custom message')
-      expected = Dropbox::API::DropboxError.new('User is not authenticated.')
       expect {
         Dropbox::API::HTTP.parse_response(response)
-      }.to raise_error(Dropbox::API::DropboxAuthError, expected.to_s)
+      }.to raise_error(Dropbox::API::DropboxAuthError)
     end
 
     it 'throws DropboxError if parsing error body fails' do
       response = MyException3.new('{Invalid json}')
-      expected = Dropbox::API::DropboxError.new("Dropbox Server Error: body = #{ response.body }")
       expect {
         Dropbox::API::HTTP.parse_response(response)
-      }.to raise_error(Dropbox::API::DropboxError, expected.to_s)
+      }.to raise_error(Dropbox::API::DropboxError)
     end
 
     it 'throws DropboxError if json error exists' do
       response = MyException3.new('{"error": "Custom message", "user_error": "User error"}')
-      expected = Dropbox::API::DropboxError.new('Custom message', nil, 'User error')
       expect {
         Dropbox::API::HTTP.parse_response(response)
-      }.to raise_error(Dropbox::API::DropboxError, expected.to_s)
+      }.to raise_error(Dropbox::API::DropboxError)
     end
 
     it 'throws DropboxError if json error doesn\'t exist' do
       response = MyException3.new('{"not_error": "Custom message"}')
-      expected = Dropbox::API::DropboxError.new('{"not_error": "Custom message"}')
       expect {
         Dropbox::API::HTTP.parse_response(response)
-      }.to raise_error(Dropbox::API::DropboxError, expected.to_s)
+      }.to raise_error(Dropbox::API::DropboxError)
     end
 
     it 'returns body contents raw' do
@@ -272,15 +260,25 @@ describe Dropbox::API::HTTP do
   end
 
   # Not exactly a unit-test. Requires actual internet connections.
-  # TODO Oauth?
+  # TODO Oauth? [elsewhere]
+  # TODO is there a better way to verify that SSL is working properly?
   describe 'certificate verification' do
+    before(:all) do
+      WebMock.allow_net_connect!
+    end
+
+    after(:all) do
+      WebMock.disable_net_connect!
+    end
+
     it 'connects to Dropbox correctly' do
       expect {
         Dropbox::API::HTTP.do_http_request(Net::HTTP::Get, Dropbox::API::WEB_SERVER, '/')
       }.not_to raise_error
     end
 
-    # This test might end up platform-dependent. Hopefully it won't.
+    # Make sure that this test passes on all platforms. It tests functionality that
+    # used to only work for certains versions of Ruby (i.e. not OS X)
     it 'gets an SSL error if trusted-certs.crt doesn\'t have valid certs' do
       File.open('test_certs.crt', 'w').close
       expect {

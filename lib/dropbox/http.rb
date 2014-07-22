@@ -15,11 +15,16 @@ module Dropbox
       CERTIFICATE_SUCCESS = 0
 
       def self.make_query_string(params)
-        clean_params(params).collect { |k, v|
+        new_params = {}
+        params.each do |k, v|
+          new_params[k.to_s] = v.to_s unless v.nil?
+        end
+        new_params.collect { |k, v|
           "#{ CGI.escape(k) }=#{ CGI.escape(v) }"
         }.join('&')
       end
 
+      # TODO Say why I moved all the http building stuff here?
       def self.do_http_request(method, host, path, params = nil, headers = nil, body = nil, cert_file = nil) # :nodoc:
         # TODO other argument validation?
 
@@ -77,7 +82,9 @@ module Dropbox
         end
       end
 
-      private
+      # TODO make below methods private
+      # create_http_request not private?
+      # private_class_method?
 
       def self.create_http_request(method, host, path, params = nil, headers = nil, body = nil, cert_file = nil)
         unless method < Net::HTTPRequest
@@ -169,15 +176,6 @@ module Dropbox
         end
 
         nil
-      end
-
-      def self.clean_params(params)
-        # TODO there isn't a better way to do this?
-        new_params = {}
-        params.each do |k, v|
-          new_params[k.to_s] = v.to_s unless v.nil?
-        end
-        new_params
       end
 
     end
