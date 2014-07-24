@@ -1,5 +1,6 @@
 require 'net/http'
 require 'cgi'
+require 'openssl'
 # CGI.escape is CGI::Util.escape in Ruby 2.1.2 >_>
 
 module Dropbox

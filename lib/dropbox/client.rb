@@ -8,7 +8,7 @@ module Dropbox
 
     # Use this class to make Dropbox API calls.  You'll need to obtain an OAuth 2 access token
     # first; you can get one using either WebAuth or WebAuthNoRedirect.
-    class DropboxClient
+    class Client
 
       # Args:
       # * +oauth2_access_token+: Obtained via DropboxOAuth2Flow or DropboxOAuth2FlowNoRedirect.
@@ -18,7 +18,7 @@ module Dropbox
           fail ArgumentError, "oauth2_access_token must be a String; got #{ oauth2_access_token.inspect }"
         end
         @session = Dropbox::API::Session.new(oauth2_access_token, client_identifier, locale)
-        @host_info ||= Dropbox::API::Host_Info.default
+        @host_info ||= Dropbox::API::HostInfo.default
         @root = root.to_s  # If they passed in a symbol, make it a string
 
         unless ['dropbox', 'app_folder', 'auto'].include?(@root)
