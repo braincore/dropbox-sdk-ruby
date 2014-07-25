@@ -1,20 +1,30 @@
 require 'net/http'
 require 'cgi'
 require 'openssl'
-# CGI.escape is CGI::Util.escape in Ruby 2.1.2 >_>
 
 module Dropbox
   module API
+
+    # This module processes all HTTP requests and responses for the SDK.
+    #
+    # For requests, do_http_request takes all the parts of a request,
+    # assembles them, and sets SSL settings so that all requests to the
+    # Dropbox servers are secure.
     module HTTP
 
-      TRUSTED_CERT_FILE = File.join(File.dirname(File.dirname(__FILE__)), 'trusted-certs.crt')
+      TRUSTED_CERT_FILE = File.join(File.dirname(File.dirname(__FILE__)),
+          'trusted-certs.crt')
       HTTPS_PORT = 443
 
-      # OpenSSL error codes for certificate validation
-      # See man page for openssl for the complete list.
+      # OpenSSL error codes for certificate validation.
+      # See man page for 'verify' for the complete list.
       CERTIFICATE_SIGNATURE_FAILURE = 7
       CERTIFICATE_SUCCESS = 0
 
+      # Converts a hash into a query string.
+      #
+      # Turns all keys/values into strings, escapes special characters,
+      # and does not include any key/value pairs with a nil value.
       def self.make_query_string(params)
         new_params = {}
         params.each do |k, v|
@@ -25,96 +35,130 @@ module Dropbox
         }.join('&')
       end
 
-      # TODO Say why I moved all the http building stuff here?
-      # TODO oof that's a lot of arguments
-      def self.do_http_request(method, host, path, client_identifier, params = nil, headers = nil, body = nil, cert_file = nil) # :nodoc:
-        # TODO other argument validation?
-
-        # dependency injection for testing
+      # Makes an http request out of the provided parts and
+      # returns the response.
+      #
+      # Args:
+      # * +method+: Indicates the request's HTTP method
+      #   (Get, Post, or Put from the Net::HTTP module.)
+      # * +host+: Host website (e.g 'www.dropbox.com')
+      # * +path+: URL path (e.g. '/metadata')
+      # * +client_identifier+: A string, typically of the form
+      #   [app]/[version], indicating the identity of whoever is making
+      #   the request. This will be part of the User-Agent HTTP header.
+      # * +params+: A hash of the query parameters that will appear in the URL
+      # * +headers+: A hash of HTTP headers, excluding User-Agent
+      # * +body+: Data that will be the HTTP body. This can either be a string
+      #   that will get copied, a file-like object that will be read into
+      #   the body, or a hash that will be converted into query parameter
+      #   format (e.g. POST requests).
+      # * +cert_file+: A .crt file of trusted hosts. This parameter is only
+      #   used for testing; it will always be TRUSTED_CERT_FILE in normal use.
+      def self.do_http_request(method, host, path, client_identifier = '',
+                               params = nil, headers = nil,
+                               body = nil, cert_file = nil)
         cert_file ||= TRUSTED_CERT_FILE
 
-        http, http_request = create_http_request(method, host, path, client_identifier, params, headers, body, cert_file)
+        http, http_request = create_http_request(method, host, path,
+                                                 client_identifier, params,
+                                                 headers, body, cert_file)
 
         begin
           http.request(http_request)
         rescue OpenSSL::SSL::SSLError => e
-          raise DropboxError.new("SSL error connecting to Dropbox.  " +
-                  "There may be a problem with the set of certificates in \"#{ cert_file }\". #{ e.message }")
+          raise DropboxError.new("SSL error connecting to Dropbox. "\
+              "There may be a problem with the set of certificates in"\
+              " \"#{ cert_file }\". #{ e.message }")
         end
       end
 
-      # Parse response. You probably shouldn't be calling this directly.  This takes responses from the server
-      # and parses them.  It also checks for errors and raises exceptions with the appropriate messages.
-      def self.parse_response(http_response, raw = false) # :nodoc:
+      # Parses response. You probably shouldn't be calling this directly.
+      #
+      # This takes responses from the server and parses them.  It also checks
+      # for errors and raises exceptions with the appropriate messages.
+      #
+      # Args:
+      # * +response+: HTTP response object
+      # * +raw+: If true, the response body is treated as raw data. Otherwise,
+      #   it is treated as JSON. Defaults to false.
+      def self.parse_response(response, raw = false)
         # Check for server errors
-        if http_response.kind_of?(Net::HTTPServerError)
-          fail DropboxError.new("Dropbox Server Error: #{ http_response } - #{ http_response.body }", http_response)
+        if response.kind_of?(Net::HTTPServerError)
+          fail DropboxError.new("Dropbox Server Error: #{ response } - "\
+              "#{ response.body }", response)
 
         # Check for authentication errors
-        elsif http_response.kind_of?(Net::HTTPUnauthorized)
-          fail DropboxAuthError.new('User is not authenticated.', http_response)
+        elsif response.kind_of?(Net::HTTPUnauthorized)
+          fail DropboxAuthError.new('User is not authenticated.', response)
 
         # Check for any other kind of error
-        elsif !http_response.kind_of?(Net::HTTPSuccess)
+        elsif !response.kind_of?(Net::HTTPSuccess)
           begin
-            json = MultiJson.load(http_response.body)
+            json = MultiJson.load(response.body)
           rescue
-            fail DropboxError.new("Dropbox Server Error: body = #{ http_response.body }", http_response)
+            fail DropboxError.new("Dropbox Server Error: body = "\
+                "#{ response.body }", response)
           end
 
           if json['error']
             # user_error might be nil; it is internationalized if it exists
-            fail DropboxError.new(json['error'], http_response, json['user_error'])
+            fail DropboxError.new(json['error'], response, json['user_error'])
           else
-            fail DropboxError.new(http_response.body, http_response)
+            fail DropboxError.new(response.body, response)
           end
         end
 
         # Return the raw body for file content API endpoints
         if raw
-          http_response.body
+          response.body
 
         # Assume it is JSON otherwise
         else
           begin
-            MultiJson.load(http_response.body)
+            MultiJson.load(response.body)
           rescue MultiJson::ParseError
-            raise DropboxError.new("Unable to parse JSON response: #{ http_response.body }", http_response)
+            raise DropboxError.new("Unable to parse JSON response: "\
+                "#{ response.body }", response)
           end
         end
       end
 
-      # TODO make below methods private
-      # create_http_request not private?
-      # private_class_method?
-
-      def self.create_http_request(method, host, path, client_identifier, params = nil, headers = nil, body = nil, cert_file = nil)
+      # Creates and returns an http request object and an http object
+      def self.create_http_request(method, host, path, client_identifier = '',
+                                   params = nil, headers = nil,
+                                   body = nil, cert_file = nil) #:nodoc:
         unless method < Net::HTTPRequest
-          fail ArgumentError, "method must subclass Net::HTTPRequest; got #{ method.inspect }"
+          fail ArgumentError, "method must subclass Net::HTTPRequest; got "\
+              "#{ method.inspect }"
         end
 
         http = Net::HTTP.new(host, HTTPS_PORT)
         set_ssl_settings(http, cert_file)
 
         params ||= {}
-        path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?#{ make_query_string(params) }"
+        path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?"\
+            "#{ make_query_string(params) }"
         http_request = method.new(path_and_params)
         http_request.initialize_http_header(headers)
 
         set_http_body(http_request, body)
 
-        # Additional header. We use this to better understand how developers are using our SDKs.
-        http_request['User-Agent'] = "#{ client_identifier } OfficialDropboxRubySDK/#{ Dropbox::API::SDK_VERSION }"
+        # Additional header.
+        # We use this to better understand how developers are using our SDKs.
+        http_request['User-Agent'] = "#{ client_identifier } "\
+            "OfficialDropboxRubySDK/#{ Dropbox::API::SDK_VERSION }"
 
         return http, http_request
       end
 
-      def self.set_ssl_settings(http, cert_file)
+      # Sets SSL settings so that all requests are configured correctly
+      def self.set_ssl_settings(http, cert_file) # :nodoc:
         http.use_ssl = true
         http.verify_mode = OpenSSL::SSL::VERIFY_PEER
         http.ca_file = cert_file.nil? ? TRUSTED_CERT_FILE : cert_file
 
-        # SSL protocol and ciphersuite settings are supported starting with version 1.9
+        # SSL protocol and ciphersuite settings are supported starting with
+        # Ruby 1.9
         if RUBY_VERSION >= '1.9'
           http.ssl_version = 'TLSv1'
           http.ciphers = 'ECDHE-RSA-AES256-GCM-SHA384:'\
@@ -139,19 +183,25 @@ module Dropbox
         end
 
         # Important security note!
-        # Some Ruby versions (e.g. the one that ships with OS X) do not raise an exception if certificate validation fails.
-        # We therefore have to add a custom callback to ensure that invalid certs are not accepted
-        # See https://www.braintreepayments.com/braintrust/sslsocket-verify_mode-doesnt-verify
-        # You can comment out this code in case your Ruby version is not vulnerable
+        # Some Ruby versions (e.g. the one that ships with OS X) do not raise
+        # an exception if certificate validation fails. We therefore have to
+        # add a custom callback to ensure that invalid certs are not accepted.
+        # Some specific error codes are let through, so we change the error
+        # code to make sure that Ruby throws an exception if certificate
+        # validation fails.
         #
-        # TODO Comment about this. Error codes are in "man verify"
+        # You can comment out this code if your Ruby version is not vulnerable.
         http.verify_callback = proc do |preverify_ok, ssl_context|
           success = preverify_ok && ssl_context.error == CERTIFICATE_SUCCESS
           ssl_context.error = CERTIFICATE_SIGNATURE_FAILURE unless success
           success
         end
       end
+      private_class_method :set_ssl_settings
 
+      # Set the HTTP request body. It will be treated as raw data if the data
+      # is file-like, a query string if it is a hash (e.g. in POST requests),
+      # or a string otherwise.
       def self.set_http_body(http_request, body)
         return if body.nil?
 
@@ -179,6 +229,7 @@ module Dropbox
 
         nil
       end
+      private_class_method :set_http_body
 
     end
   end

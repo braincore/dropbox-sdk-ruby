@@ -17,21 +17,26 @@ require 'shellwords'
 #   allows them to type commands to manipulate their dropbox.
 ####
 
+# TODO take my test data out
+# TODO https://www.dropbox.com/developers/core/start/ruby mirror code
+
 # You must use your Dropbox App key and secret to use the API.
 # Find this at https://www.dropbox.com/developers
-APP_KEY = '6h3mb612nrm6ck7'
-APP_SECRET = '1g6rkcvmw25rt2j'
 
 class DropboxCLI
   LOGIN_REQUIRED = %w{put get cp mv rm ls mkdir info logout search thumbnail}
 
   def initialize
-    if APP_KEY == '' or APP_SECRET == ''
-      puts "You must set your APP_KEY and APP_SECRET in cli_example.rb!"
+    begin
+      @app_info = Dropbox::API::AppInfo.from_json_file('app_info.json')
+      if @app_info.key == '' || @app_info.secret == ''
+        fail
+      end
+    rescue
+      puts "You must set your app key and app secret in app_info.json!"
       puts "Find this in your apps page at https://www.dropbox.com/developers/"
       exit
     end
-
     @client = nil
   end
 
@@ -39,8 +44,7 @@ class DropboxCLI
     if not @client.nil?
       puts "already logged in!"
     else
-      app_info = Dropbox::API::AppInfo.new(APP_KEY, APP_SECRET)
-      web_auth = Dropbox::API::WebAuthNoRedirect.new(app_info, 'RubySDK/2.0')
+      web_auth = Dropbox::API::WebAuthNoRedirect.new(@app_info, 'RubySDK/2.0')
       authorize_url = web_auth.start()
       puts "1. Go to: #{authorize_url}"
       puts "2. Click \"Allow\" (you might have to log in first)."

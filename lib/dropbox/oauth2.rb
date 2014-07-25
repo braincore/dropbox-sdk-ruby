@@ -3,6 +3,10 @@ require 'base64'
 
 module Dropbox
   module API
+
+    # This module contains OAuth2 functions for the authorization
+    # flow. The Ruby SDK does not support the token flow. You should use
+    # either the WebAuth or WebAuthNoRedirect classes.
     module OAuth2
 
       # TODO add other common methods from PHP doc?
