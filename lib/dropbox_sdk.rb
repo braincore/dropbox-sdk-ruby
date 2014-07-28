@@ -31,14 +31,6 @@ module Dropbox # :nodoc:
     }.join("&")
   end
 
-  def self.verify_ssl_certificate(preverify_ok, ssl_context)
-    if preverify_ok != true || ssl_context.error != 0
-    err_msg = "SSL Verification failed -- Preverify: #{preverify_ok}, Error: #{ssl_context.error_string} (#{ssl_context.error})"
-    raise OpenSSL::SSL::SSLError.new(err_msg)
-    end
-    true
-  end
-
   def self.do_http(uri, request) # :nodoc:
 
     http = Net::HTTP.new(uri.host, uri.port)
@@ -72,12 +64,25 @@ module Dropbox # :nodoc:
     end
 
     # Important security note!
-    # Some Ruby versions (e.g. the one that ships with OS X) do not raise an exception if certificate validation fails.
-    # We therefore have to add a custom callback to ensure that invalid certs are not accepted
-    # See https://www.braintreepayments.com/braintrust/sslsocket-verify_mode-doesnt-verify
-    # You can comment out this code in case your Ruby version is not vulnerable
+    # Some Ruby versions (e.g. the one that ships with OS X) do not raise
+    # an exception if certificate validation fails. We therefore have to
+    # add a custom callback to ensure that invalid certs are not accepted.
+    # Some specific error codes are let through, so we change the error
+    # code to make sure that Ruby throws an exception if certificate
+    # validation fails.
+    #
+    # See the man page for 'verify' for more information on error codes.
+    #
+    # You can comment out this code if your Ruby version is not vulnerable.
     http.verify_callback = proc do |preverify_ok, ssl_context|
-      Dropbox::verify_ssl_certificate(preverify_ok, ssl_context)
+      # 0 is the error code for success
+      if preverify_ok && ssl_context.error == 0
+        true
+      else
+        # 7 is the error code for certification signature failure
+        ssl_context.error = 7
+        false
+      end
     end
 
     #We use this to better understand how developers are using our SDKs.
