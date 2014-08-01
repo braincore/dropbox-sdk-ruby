@@ -25,9 +25,7 @@ module Dropbox
         end
 
         if json.include?('web_server') || json.include?('api_server') || json.include?('api_content_server')
-          host_info = Dropbox::API::HostInfo.new(json['web_server'],
-                                                 json['api_server'],
-                                                 json['api_content_server'])
+          host_info = Dropbox::API::HostInfo.from_json(json)
         else
           host_info = Dropbox::API::HostInfo.default
         end
