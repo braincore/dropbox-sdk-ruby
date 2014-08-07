@@ -7,7 +7,7 @@ module Dropbox
       def initialize(app_key, app_secret, host_info = nil)
         @key = app_key
         @secret = app_secret
-        @host_info ||= Dropbox::API::HostInfo.default
+        @host_info = host_info || Dropbox::API::HostInfo.default
       end
 
       def self.from_json_file(filename)
@@ -15,7 +15,7 @@ module Dropbox
         contents = file.read
         file.close
 
-        json = MultiJson.load(contents)
+        json = Oj.load(contents)
         self.from_json(json)
       end
 
@@ -24,7 +24,10 @@ module Dropbox
           fail 'JSON must have fields "app_key" and "app_secret"'
         end
 
-        if json.include?('web_server') || json.include?('api_server') || json.include?('api_content_server')
+        if json.include?('web_server') ||
+           json.include?('api_server') ||
+           json.include?('api_content_server') ||
+           json.include?('port')
           host_info = Dropbox::API::HostInfo.from_json(json)
         else
           host_info = Dropbox::API::HostInfo.default

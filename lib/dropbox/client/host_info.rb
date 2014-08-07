@@ -2,12 +2,17 @@ module Dropbox
   module API
     class HostInfo
 
-      attr_reader :web_server, :api_server, :api_content_server
+      attr_reader :web_server, :api_server, :api_content_server, :port
 
-      def initialize(web_server = nil, api_server = nil, api_content_server = nil)
+      def initialize(web_server = nil,
+                     api_server = nil,
+                     api_content_server = nil,
+                     port = nil)
         @web_server = web_server || Dropbox::API::WEB_SERVER
         @api_server = api_server || Dropbox::API::API_SERVER
-        @api_content_server = api_content_server || Dropbox::API::API_CONTENT_SERVER
+        @api_content_server = api_content_server ||
+            Dropbox::API::API_CONTENT_SERVER
+        @port = port || Dropbox::API::HTTP::HTTPS_PORT
       end
 
       def self.default
@@ -15,9 +20,10 @@ module Dropbox
       end
 
       def self.from_json(json)
-        @web_server = json['web_server']
-        @api_server = json['api_server']
-        @api_content_server = json['api_content_server']
+        self.new(json['web_server'],
+                 json['api_server'],
+                 json['api_content_server'],
+                 json['port'])
       end
 
       def self.from_json_file(filename)
@@ -25,7 +31,7 @@ module Dropbox
         contents = file.read
         file.close
 
-        json = MultiJson.load(contents)
+        json = Oj.load(contents)
         self.from_json(json)
       end
 

@@ -1,4 +1,8 @@
 {
   "app_key": "6h3mb612nrm6ck7",
-  "app_secret": "1g6rkcvmw25rt2j"
+  "app_secret": "1g6rkcvmw25rt2j",
+  "web_server": "localhost",
+  "api_server": "localhost",
+  "api_content_server": "localhost",
+  "port": 8080
 }

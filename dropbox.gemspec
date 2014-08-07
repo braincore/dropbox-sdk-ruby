@@ -11,7 +11,8 @@ Gem::Specification.new do |s|
   s.authors = ['Dropbox, Inc.']
   s.email = ['support-api@dropbox.com']
 
-  s.add_runtime_dependency 'multi_json'
+  #s.add_runtime_dependency 'multi_json'
+  s.add_runtime_dependency 'oj'
 
   s.add_development_dependency 'rspec', '~> 2.2'
   s.add_development_dependency 'webmock'

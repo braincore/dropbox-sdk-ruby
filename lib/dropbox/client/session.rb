@@ -3,34 +3,36 @@ module Dropbox
 
     class Session
 
-      def initialize(oauth2_access_token, client_identifier, locale)
-        @oauth2_access_token = oauth2_access_token
+      def initialize(oauth2_token, client_identifier, locale, host_info)
         @client_identifier = client_identifier
-        @locale = locale
+        @host_info = host_info
+        @COMMON_HEADERS = {
+          'Authorization' => "Bearer #{ oauth2_token }",
+          'Dropbox-API-User-Locale' => locale
+        }
       end
 
-      def do_get(host, path, params = {}, headers = {})  # :nodoc:
-        sign_and_set_locale(params, headers)
-        Dropbox::API::HTTP.do_http_request(Net::HTTP::Get, host, path, @client_identifier, params, headers)
+      def do_rpc_endpoint(path, args)
+        Dropbox::API::HTTP.do_http_request(
+            Net::HTTP::Post, @host_info.api_server, path,
+            client_identifier: @client_identifier,
+            headers: @COMMON_HEADERS,
+            body: args,
+            port: @host_info.port)
       end
 
-      def do_post(host, path, params = {}, headers = {})  # :nodoc:
-        sign_and_set_locale(params, headers)
-        Dropbox::API::HTTP.do_http_request(Net::HTTP::Post, host, path, @client_identifier, nil, headers, params)
+      # TODO Check if I can hardcode POST
+      def do_content_endpoint(path, args, data = nil)
+        headers = @COMMON_HEADERS.merge({
+          'Dropbox-API-Args' => Oj.dump(args)
+        })
+        Dropbox::API::HTTP.do_http_request(
+            Net::HTTP::Post, @host_info.api_content_server, path,
+            client_identifier: @client_identifier,
+            headers: headers,
+            body: data,
+            port: @host_info.port)
       end
-
-      def do_put(host, path, params = {}, headers = {}, body = nil)  # :nodoc:
-        sign_and_set_locale(params, headers)
-        Dropbox::API::HTTP.do_http_request(Net::HTTP::Put, host, path, @client_identifier, params, headers, body)
-      end
-
-      private
-
-      def sign_and_set_locale(params, headers)
-        params['locale'] = @locale
-        headers['Authorization'] = "Bearer #{ @oauth2_access_token }"
-      end
-
     end
 
   end

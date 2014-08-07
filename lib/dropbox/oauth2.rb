@@ -55,17 +55,23 @@ module Dropbox
         method = Net::HTTP::Post
         host = @host_info.api_server
         path = '/oauth2/token'
-        params = {}
         headers = {
           'Authorization' => "Basic #{ Base64.encode64(client_credentials).chomp("\n") }"
         }
-        body_params = {
+        body = {
           'grant_type' => 'authorization_code',
           'code' => code,
           'locale' => @locale,
         }.merge(other_params)
 
-        response = Dropbox::API::HTTP.do_http_request(method, host, path, client_identifier, params, headers, body_params)
+        response = Dropbox::API::HTTP.do_http_request(
+            method,
+            host,
+            path,
+            client_identifier: @client_identifier,
+            headers: headers,
+            body: body,
+            port: @host_info.port)
         json = Dropbox::API::HTTP.parse_response(response)
 
         ['token_type', 'access_token', 'uid'].each do |key|

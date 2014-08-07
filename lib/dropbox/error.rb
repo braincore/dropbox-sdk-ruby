@@ -1,6 +1,59 @@
 module Dropbox
   module API
 
+    class GenericError < RuntimeError
+      ALLOWED_STATUSES = [400, 401, 429, 500]
+
+      attr_accessor :error_data, :status
+
+      def initialize(error_data, status)
+        if !ALLOWED_STATUSES.include?(status)
+          fail ArgumentError, "#{ status } is not an allowed HTTP status."
+        end
+        @error_data = error_data
+        @status = status
+      end
+    end
+
+    class BadRequestError < GenericError
+      def initialize(error_data)
+        super(error_data, 400)
+      end
+    end
+
+    class UnauthorizedError < GenericError
+      def initialize(error_data)
+        super(error_data, 401)
+      end
+    end
+
+    class TooManyRequestsError < GenericError
+      def initialize(error_data)
+        super(error_data, 429)
+      end
+    end
+
+    class ServerError < GenericError
+      def initialize(error_data)
+        super(error_data, 500)
+      end
+    end
+
+    # TODO finish once error formatting is determined
+    class APIError < RuntimeError
+      STATUS = 409
+
+      attr_accessor :error_data, :status
+
+      def initialize(error_data)
+        @status = STATUS
+        @error = error_data[:error]
+        @user_message = error_data[:user_message]
+      end
+    end
+
+    ###################################
+
     # This is the usual error raised on any Dropbox related Errors
     # TODO http_response is passed in but not used
     class DropboxError < RuntimeError

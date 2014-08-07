@@ -95,6 +95,7 @@ describe Dropbox::API::HTTP do
         expect(http_request.body_stream.readlines(nil)[0]).to eq(file_contents)
         expect(http_request.body).to be_nil
         expect(http_request['content-length']).to eq("#{ file_contents.length }")
+        expect(http_request['content-type']).to eq('application/octet-stream')
       end
 
       it 'sets raw body contents from a string' do
