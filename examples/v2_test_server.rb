@@ -25,7 +25,7 @@ require 'shellwords'
 # Find this at https://www.dropbox.com/developers
 
 class DropboxCLI
-  LOGIN_REQUIRED = %w{put get ls info logout thumbnail}
+  LOGIN_REQUIRED = %w{files_info files_download files_thumbnail files_upload users_info logout}
 
   def initialize
     begin
@@ -33,6 +33,7 @@ class DropboxCLI
       if @app_info.key == '' || @app_info.secret == ''
         fail
       end
+      @app_info.host_info = Dropbox::API::HostInfo.new('localhost', 'localhost', 'localhost', 8080)
     rescue Exception => e
       puts "#{ e.message }"
       puts "You must set your app key and app secret in app_info.json!"
@@ -60,7 +61,7 @@ class DropboxCLI
       access_token = 'pBNF4W7eNvkAAAAAAAAAjz8z0sl9pbKl3_u3IwqKkSrMwd6osopsh1C87AkChT2d'
       user_id = 312639012
 
-      @client = Dropbox::API::Client.new(access_token, 'RubySDK/2.0', 'auto', nil, @app_info.host_info)
+      @client = Dropbox::API::Client.new(access_token, 'RubySDK/2.0', nil, @app_info.host_info)
       puts "You are logged in.  Your access token is #{access_token}."
     end
   end
@@ -105,66 +106,30 @@ class DropboxCLI
     puts "You are logged out."
   end
 
-  def put(command)
-    fname = command[1]
-
-    #If the user didn't specifiy the file name, just use the name of the file on disk
-    if command[2]
-      new_name = command[2]
-    else
-      new_name = File.basename(fname)
-    end
-
-    if fname && !fname.empty? && File.exists?(fname) && (File.ftype(fname) == 'file') && File.stat(fname).readable?
-      #This is where we call the the Dropbox Client
-      pp @client.put_file(new_name, open(fname))
-    else
-      puts "couldn't find the file #{ fname }"
-    end
+  def files_upload(command)
+    pp @client.files.upload('/', WriteConflictPolicy.overwrite, nil)
   end
 
-  def get(command)
-    dest = command[2]
-    if !command[1] || command[1].empty?
-      puts "please specify item to get"
-    elsif !dest || dest.empty?
-      puts "please specify full local path to dest, i.e. the file to write to"
-    elsif File.exists?(dest)
-      puts "error: File #{dest} already exists."
-    else
-      src = clean_up(command[1])
-      out,metadata = @client.get_file_and_metadata('/' + src)
-      puts "Metadata:"
-      pp metadata
-      open(dest, 'w'){|f| f.puts out }
-      puts "wrote file #{dest}."
-    end
-  end
-
-  # Example:
-  # > thumbnail pic1.jpg ~/pic1-local.jpg large
-  def thumbnail(command)
-    dest = command[2]
-    command[3] ||= 'small'
-    out,metadata = @client.thumbnail_and_metadata(command[1], command[3])
-    puts "Metadata:"
+  def files_download(command)
+    out, metadata = @client.files.download('/')
     pp metadata
-    open(dest, 'w'){|f| f.puts out }
-    puts "wrote thumbnail#{dest}."
   end
 
-  def info(command)
-    pp @client.account_info
+  def files_thumbnail(command)
+    out, metadata = @client.files.thumbnail
+    pp metadata
   end
 
-  def ls(command)
-    command[1] = '/' + clean_up(command[1] || '')
-    resp = @client.metadata(command[1]).value
+  def users_info(command)
+    pp @client.users.info('me')
+  end
 
-    if resp.contents.length > 0
-      for item in resp.contents
-        puts item.path
-      end
+  def files_info(command)
+    response = @client.files.info('/')
+    if response.file?
+      pp response.file
+    elsif response.folder?
+      pp response.folder
     end
   end
 

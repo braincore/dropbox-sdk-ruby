@@ -2,14 +2,9 @@ module Dropbox
   module API
 
     class GenericError < RuntimeError
-      ALLOWED_STATUSES = [400, 401, 429, 500]
-
       attr_accessor :error_data, :status
 
       def initialize(error_data, status)
-        if !ALLOWED_STATUSES.include?(status)
-          fail ArgumentError, "#{ status } is not an allowed HTTP status."
-        end
         @error_data = error_data
         @status = status
       end

@@ -76,6 +76,14 @@ module Dropbox
         end
       end
 
+      def self.parse_content_response(response)
+        parse_response(response, true)
+      end
+
+      def self.parse_rpc_response(response)
+        parse_response(response, false)
+      end
+
       # Parses response. You probably shouldn't be calling this directly.
       #
       # This takes responses from the server and parses them.  It also checks
@@ -87,65 +95,68 @@ module Dropbox
       #   it is treated as JSON. Defaults to false.
 
       # TODO check for json errors first, then look for specific body/data
-      def self.parse_response(response)
+      def self.parse_response(response, is_content_endpoint)
+        case response.code
+        when'500'
 
-        # if response.code == '500'
+        when '429'
 
-        # elsif response.code == '429'
+        when '401'
 
-        # elsif response.code == '401'
+        when '400'
 
-        # elsif response.code == '400'
+        when '409'
 
-        # elsif response.code == '409'
-
-        # elsif response.code == '200'
-        #   if response['Dropbox-API-Result'] # Content-style endpoint
-        #     json = Oj.load(response['Dropbox-API-Result'])
-        #     return response.body, json
-        #   else # RPC-style endpoint
-        #     Oj.load(response.body)
-        # end
+        when '200'
+          if is_content_endpoint
+            json = Oj.load(response['Dropbox-API-Result'])
+            return response.body, json
+          else
+            Oj.load(response.body)
+          end
+        else
+          # TODO Unknown error
+        end
 
         # Check for server errors
-        if response.kind_of?(Net::HTTPServerError)
-          fail DropboxError.new("Dropbox Server Error: #{ response } - "\
-              "#{ response.body }", response)
+        # if response.kind_of?(Net::HTTPServerError)
+        #   fail DropboxError.new("Dropbox Server Error: #{ response } - "\
+        #       "#{ response.body }", response)
 
-        # Check for authentication errors
-        elsif response.kind_of?(Net::HTTPUnauthorized)
-          fail DropboxAuthError.new('User is not authenticated.', response)
+        # # Check for authentication errors
+        # elsif response.kind_of?(Net::HTTPUnauthorized)
+        #   fail DropboxAuthError.new('User is not authenticated.', response)
 
-        # Check for any other kind of error
-        elsif !response.kind_of?(Net::HTTPSuccess)
-          begin
-            json = Oj.load(response.body)
-          rescue
-            fail DropboxError.new("Dropbox Server Error: body = "\
-                "#{ response.body }", response)
-          end
+        # # Check for any other kind of error
+        # elsif !response.kind_of?(Net::HTTPSuccess)
+        #   begin
+        #     json = Oj.load(response.body)
+        #   rescue
+        #     fail DropboxError.new("Dropbox Server Error: body = "\
+        #         "#{ response.body }", response)
+        #   end
 
-          if json['error']
-            # user_error might be nil; it is internationalized if it exists
-            fail DropboxError.new(json['error'], response, json['user_error'])
-          else
-            fail DropboxError.new(response.body, response)
-          end
-        end
+        #   if json['error']
+        #     # user_error might be nil; it is internationalized if it exists
+        #     fail DropboxError.new(json['error'], response, json['user_error'])
+        #   else
+        #     fail DropboxError.new(response.body, response)
+        #   end
+        # end
 
-        # Return the raw body for file content API endpoints
-        if raw
-          response.body
+        # # Return the raw body for file content API endpoints
+        # if raw
+        #   response.body
 
-        # Assume it is JSON otherwise
-        else
-          begin
-            Oj.load(response.body)
-          rescue Oj::ParseError
-            raise DropboxError.new("Unable to parse JSON response: "\
-                "#{ response.body }", response)
-          end
-        end
+        # # Assume it is JSON otherwise
+        # else
+        #   begin
+        #     Oj.load(response.body)
+        #   rescue Oj::ParseError
+        #     raise DropboxError.new("Unable to parse JSON response: "\
+        #         "#{ response.body }", response)
+        #   end
+        # end
       end
 
       # Creates and returns an http request object and an http object
@@ -259,11 +270,11 @@ module Dropbox
         # If all else fails, just make it a string
         # TODO check this. Should it fail instead?
         else
-          #body = body.to_s
-          #http_request['Content-Length'] = body.length
-          #http_request.body = body
-          fail ArgumentError, "Don't know how to handle 'body' (must be a "\
-              "file-like object or a hash"
+          body = body.to_s
+          http_request['Content-Length'] = body.length
+          http_request.body = body
+          #fail ArgumentError, "Don't know how to handle 'body' (must be a "\
+          #    "file-like object or a hash"
         end
 
         nil

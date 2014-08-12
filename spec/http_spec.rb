@@ -2,16 +2,24 @@ require 'spec_helper'
 
 describe Dropbox::API::HTTP do
 
-  describe '.make_query_string' do
-    it 'removes nil values' do
-      before = { 'a' => nil, 'b' => 'not_nil' }
-      expect(Dropbox::API::HTTP.make_query_string(before)).to eq('b=not_nil')
-    end
-
-    it 'converts everything to strings' do
+  describe '.clean_hash' do
+    it 'converts keys and values to strings' do
       before = { :a => :b, 'c' => :d, :e => 'f' }
       after = { 'a' => 'b', 'c' => 'd', 'e' => 'f' }
-      expect(make_hash(Dropbox::API::HTTP.make_query_string(before))).to eq(make_hash('a=b&c=d&e=f'))
+      expect(Dropbox::API::HTTP.clean_hash(before)).to eq(after)
+    end
+
+    it 'removes nil values' do
+      before = { 'a' => nil, 'b' => 'not_nil' }
+      after = { 'b' => 'not_nil' }
+      expect(Dropbox::API::HTTP.clean_hash(before)).to eq(after)
+    end
+  end
+
+  describe '.make_query_string' do
+    it 'converts to query format' do
+      hash = { :a => :b, 'c' => :d, :e => 'f' }
+      expect(make_hash(Dropbox::API::HTTP.make_query_string(hash))).to eq(make_hash('a=b&c=d&e=f'))
     end
 
     it 'escapes special characters' do

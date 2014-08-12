@@ -2,7 +2,7 @@ module Dropbox
   module API
     class AppInfo
 
-      attr_reader :key, :secret, :host_info
+      attr_accessor :key, :secret, :host_info
 
       def initialize(app_key, app_secret, host_info = nil)
         @key = app_key

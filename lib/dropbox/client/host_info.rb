@@ -2,7 +2,7 @@ module Dropbox
   module API
     class HostInfo
 
-      attr_reader :web_server, :api_server, :api_content_server, :port
+      attr_accessor :web_server, :api_server, :api_content_server, :port
 
       def initialize(web_server = nil,
                      api_server = nil,
