@@ -178,7 +178,7 @@ class DropboxCLI
   end
 
   def info(command)
-    pp @client.account_info
+    pp @client.users.info('me')
   end
 
   def ls(command)

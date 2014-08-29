@@ -8,6 +8,7 @@ require_relative '../lib/dropbox'
 require_relative '../lib/dropbox/http'
 require_relative '../lib/dropbox/error'
 require_relative '../lib/dropbox/objects'
+require_relative '../lib/dropbox/file_ops'
 require 'pp'
 require 'shellwords'
 
@@ -25,7 +26,21 @@ require 'shellwords'
 # Find this at https://www.dropbox.com/developers
 
 class DropboxCLI
-  LOGIN_REQUIRED = %w{files_info files_download files_thumbnail files_upload users_info logout}
+  LOGIN_REQUIRED = ['files_folder_list',
+                    'files_info',
+                    'files_download',
+                    'files_thumbnail',
+                    'files_delta',
+                    'files_restore',
+                    'files_upload',
+                    'users_info',
+                    'files_search',
+                    'files_preview',
+                    'files_copy',
+                    'files_delete',
+                    'files_move',
+                    'files_folder_create',
+                    'logout']
 
   def initialize
     begin
@@ -106,8 +121,16 @@ class DropboxCLI
     puts "You are logged out."
   end
 
+  def files_folder_list(command)
+    pp @client.files.folder_list('/', false, false)
+  end
+
+  def files_delta(command)
+    pp @client.files.delta('', '/')
+  end
+
   def files_upload(command)
-    pp @client.files.upload('/', WriteConflictPolicy.overwrite, nil)
+    pp @client.files.upload('/', nil, nil)
   end
 
   def files_download(command)
@@ -116,21 +139,45 @@ class DropboxCLI
   end
 
   def files_thumbnail(command)
-    out, metadata = @client.files.thumbnail
+    out, metadata = @client.files.thumbnail('jpg')
     pp metadata
+  end
+
+  def files_search(command)
+    pp @client.files.search('query')
   end
 
   def users_info(command)
     pp @client.users.info('me')
   end
 
+  def files_preview(command)
+    out, metadata = @client.files.preview('/')
+    pp metadata
+  end
+
+  def files_copy(command)
+    pp @client.files.copy('/', '/')
+  end
+
+  def files_move(command)
+    pp @client.files.move('/', '/')
+  end
+
+  def files_delete(command)
+    pp @client.files.delete('/')
+  end
+
+  def files_folder_create(command)
+    pp @client.files.folder_create('/')
+  end
+
   def files_info(command)
-    response = @client.files.info('/')
-    if response.file?
-      pp response.file
-    elsif response.folder?
-      pp response.folder
-    end
+    pp @client.files.info('/')
+  end
+
+  def files_restore(command)
+    pp @client.files.restore('/', 'rev')
   end
 
   def help

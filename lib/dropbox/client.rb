@@ -8,8 +8,15 @@ module Dropbox
   module API
 
     # Use this class to make Dropbox API calls.  You'll need to obtain an
-    # OAuth 2 access token first; you can get one using either WebAuth or
+    # OAuth2 access token first; you can get one using either WebAuth or
     # WebAuthNoRedirect.
+    #
+    # Methods for API calls are split into namespaces. The Client class
+    # stores a reference to each namespace. For example, for file and
+    # folder operations:
+    #
+    #   client = Dropbox::API::Client.new(...)
+    #   client.files.info(...) # => FileOrFolderInfo
     class Client
 
       attr_accessor :files, :users
@@ -54,95 +61,98 @@ module Dropbox
           super(session)
           @namespace = 'files'
         end
-      
+
         # Get the contents of a folder.
+        # Either a +path+ or +id+ must be
+        # specified.
         #
         # Required args:
-        # * +path+ (+String+): 
+        #
+        # Optional args:
+        # * +id+ (+String+):
         #   The path to the folder.
-        # * +include_deleted+ (+boolean+): 
-        #   If this parameter is set to true, then contents will include the
+        # * +path+ (+String+):
+        #   The id of the folder.
+        # * +include_deleted+ (+boolean+): (defaults to +false+)
+        #   If this parameter is set to , then +contents+ will include the
         #   metadata of deleted children. Note that the target of the
-        #   Dropbox::API::Client::Files.folder_list` call is always returned even
-        #   when it has been deleted (with is_deleted set to true) regardless of
+        #   Dropbox::API::Client::Files.folder_list call is always returned even
+        #   when it has been deleted (with +is_deleted+ set to true) regardless of
         #   this flag.
-        # * +include_media_info+ (+boolean+): 
+        # * +include_media_info+ (+boolean+): (defaults to +false+)
         #   If true, each file will include a media_info key.
         #
-        # Returns:
-        #   FolderInfoAndContents
-        def folder_list(path, include_deleted, include_media_info)
+        # Returns: FolderAndContents
+        def folder_list(opts = {})
+          optional_inputs = {
+            include_deleted: false,
+            include_media_info: false,
+          }.merge(opts)
           input_json = {
-            path: path,
-            include_deleted: include_deleted,
-            include_media_info: include_media_info,
+            id: optional_inputs[:id],
+            path: optional_inputs[:path],
+            include_deleted: optional_inputs[:include_deleted],
+            include_media_info: optional_inputs[:include_media_info],
           }
-          response = @session.do_rpc_endpoint("/#{ @namespace }/folder-list", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::FolderInfoAndContents.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+          response = @session.do_rpc_endpoint("/#{ @namespace }/folder_list", input_json)
+          Dropbox::API::FolderAndContents.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
         # Get the info for a file or folder.
         #
         # Required args:
-        # * +path+ (+String+): 
+        # * +path+ (+String+):
         #   The path to the file or folder.
         #
         # Optional args:
-        # * +path_rev+ (+String+): 
+        # * +path_revision+ (+String+):
         #   Specific revision for a given path.
         #
-        # Returns:
-        #   FileOrFolderInfo
+        # Returns: Entry
         def info(path, opts = {})
-          optional_inputs = {
-          }.merge(opts)
+          optional_inputs = opts
           input_json = {
             path: path,
-            path_rev: optional_inputs[:path_rev],
+            path_revision: optional_inputs[:path_revision],
           }
           response = @session.do_rpc_endpoint("/#{ @namespace }/info", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::FileOrFolderInfo.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+          Dropbox::API::Entry.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
         # Download a file.
         #
         # Required args:
-        # * +path+ (+String+): 
+        # * +path+ (+String+):
         #   The path to the file or folder.
         #
         # Optional args:
-        # * +path_rev+ (+String+): 
+        # * +path_revision+ (+String+):
         #   Specific revision for a given path.
         #
-        # Returns:
-        #   FileInfo
+        # Returns: File
         def download(path, opts = {})
-          optional_inputs = {
-          }.merge(opts)
+          optional_inputs = opts
           input_json = {
             path: path,
-            path_rev: optional_inputs[:path_rev],
+            path_revision: optional_inputs[:path_revision],
           }
           response = @session.do_content_endpoint("/#{ @namespace }/download", input_json)
           file, metadata = Dropbox::API::HTTP.parse_content_response(response)
-          return file, Dropbox::API::FileInfo.from_json(metadata)
+          return file, Dropbox::API::File.from_json(metadata)
         end
-        
+
         # Upload a file to Dropbox.
         #
         # Required args:
-        # * +path+ (+String+): 
+        # * +path+ (+String+):
         #   The full path to the file you want to write to. It should not point to
         #   a folder.
-        # * +write_conflict_policy+ (+WriteConflictPolicy+): 
+        # * +write_conflict_policy+ (+WriteConflictPolicy+):
         #   Action to take if a file already exists at the specified path.
         # * +in2+
         #   File-like object
         #
-        # Returns:
-        #   FileInfo
+        # Returns: File
         def upload(path, write_conflict_policy, in2)
           input_json = {
             path: path,
@@ -150,97 +160,46 @@ module Dropbox
           }
           response = @session.do_content_endpoint("/#{ @namespace }/upload", input_json, in2)
           file, metadata = Dropbox::API::HTTP.parse_content_response(response)
-          return file, Dropbox::API::FileInfo.from_json(metadata)
+          return file, Dropbox::API::File.from_json(metadata)
         end
-        
-        # A way of letting you keep up with changes to files and folders in a
-        # user's Dropbox. You can periodically call
-        # Dropbox::API::Client::Files.delta` to get a list of "delta entries",
-        # which are instructions on how to update your local state to match the
-        # server's state.
+
+        # Gets a preview for a file.
+        # The Content-Type header will be either
+        # application/pdf or text/html. There is an Original-Content-Length
+        # header which contains the size of the preview data.
         #
         # Required args:
-        # * +cursor+ (+String+): 
-        #   A string that is used to keep track of your current state. On the next
-        #   call pass in this value to return delta entries that have been
-        #   recorded since the cursor was returned.
-        # * +path_prefix+ (+String+): 
-        #   Filters the response to only include entries at or under the specified
-        #   path. If you use the path_prefix parameter, you must continue to pass
-        #   the same prefix on subsequent calls using the returned cursor.
-        # * +include_media_info+ (+boolean+): (defaults to false)
-        #   If , each file will include a media_info key. When include_media_info
-        #   is specified, files will only appear in delta responses when the media
-        #   info is ready. If you use the include_media_info parameter, you must
-        #   continue to pass the same value on subsequent calls using the returned
-        #   cursor.
-        #
-        # Returns:
-        #   DeltaResponse
-        def delta(cursor, path_prefix, include_media_info = false)
-          input_json = {
-            cursor: cursor,
-            path_prefix: path_prefix,
-            include_media_info: include_media_info,
-          }
-          response = @session.do_rpc_endpoint("/#{ @namespace }/delta", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::DeltaResponse.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
-        end
-        
-        # A long-poll endpoint to wait for changes on an account. In conjunction
-        # with Dropbox::API::Client::Files.delta`, this call gives you a low-
-        # latency way to monitor an account for file changes.
-        # Unlike most other
-        # API endpoints, this call does not require OAuth authentication. The
-        # passed in cursor can only be acquired via an authenticated call to
-        # Dropbox::API::Client::Files.delta`.
-        #
-        # Required args:
-        # * +cursor+ (+String+): 
-        #   A delta cursor as returned from a call to
-        #   Dropbox::API::Client::Files.delta`. Note that a cursor returned from a
-        #   call to Dropbox::API::Client::Files.delta` with include_media_info set
-        #   to  is incompatible with Dropbox::API::Client::Files.longpoll_delta`
-        #   and an error will be returned.
+        # * +path+ (+String+):
+        #   The path to the file or folder.
         #
         # Optional args:
-        # * +timeout+ (+Integer+): (defaults to 30)
-        #   An optional integer indicating a timeout, in seconds. The request will
-        #   block for at most this length of time, plus up to 90 seconds of random
-        #   jitter added to avoid the thundering herd problem
-        #   https://en.wikipedia.org/wiki/Thundering_herd_problem. Care should be
-        #   taken when using this parameter, as some network infrastructure does
-        #   not support long timeouts.
+        # * +path_revision+ (+String+):
+        #   Specific revision for a given path.
         #
-        # Returns:
-        #   LongpollDeltaResponse
-        def longpoll_delta(cursor, opts = {})
-          optional_inputs = {
-            timeout: 30,
-          }.merge(opts)
+        # Returns: File
+        def preview(path, opts = {})
+          optional_inputs = opts
           input_json = {
-            cursor: cursor,
-            timeout: optional_inputs[:timeout],
+            path: path,
+            path_revision: optional_inputs[:path_revision],
           }
-          response = @session.do_rpc_endpoint("/#{ @namespace }/longpolldelta", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::LongpollDeltaResponse.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+          response = @session.do_content_endpoint("/#{ @namespace }/preview", input_json)
+          file, metadata = Dropbox::API::HTTP.parse_content_response(response)
+          return file, Dropbox::API::File.from_json(metadata)
         end
-        
+
         # Get the thumbnail for a file.
         #
         # Required args:
-        # * +format+ (+String+): 
+        # * +format+ (+String+):
         #   jpeg (default) or png. For images that are photos, jpeg should be
         #   preferred, while png is better for screenshots and digital art.
         #
         # Optional args:
-        # * +size+ (+String+): (defaults to 's')
+        # * +size+ (+String+): (defaults to +'s'+)
         #   One of the following values: xs, s, m, l, xl.
         #
-        # Returns:
-        #   FileInfo
+        # Returns: File
         def thumbnail(format, opts = {})
           optional_inputs = {
             size: 's',
@@ -251,85 +210,158 @@ module Dropbox
           }
           response = @session.do_content_endpoint("/#{ @namespace }/thumbnail", input_json)
           file, metadata = Dropbox::API::HTTP.parse_content_response(response)
-          return file, Dropbox::API::FileInfo.from_json(metadata)
+          return file, Dropbox::API::File.from_json(metadata)
         end
-        
+
+        # A way of letting you keep up with changes to files and folders in a
+        # user's Dropbox. You can periodically call
+        # Dropbox::API::Client::Files.delta to get a list of "delta entries",
+        # which are instructions on how to update your local state to match the
+        # server's state.
+        #
+        # Required args:
+        # * +cursor+ (+String+):
+        #   A string that is used to keep track of your current state. On the next
+        #   call pass in this value to return delta entries that have been
+        #   recorded since the cursor was returned.
+        #
+        # Optional args:
+        # * +path_prefix+ (+String+):
+        #   Filters the response to only include entries at or under the specified
+        #   path.
+        # * +include_media_info+ (+boolean+): (defaults to +false+)
+        #   If , each file will include a +media_info+ key. When
+        #   +include_media_info+ is specified, files will only appear in delta
+        #   responses when the media info is ready.
+        # * +include_membership+ (+boolean+): (defaults to +false+)
+        #   If true, each shared folder will include a list of the members of the
+        #   shared folder.
+        #
+        # Returns: DeltaResponse
+        def delta(cursor, opts = {})
+          optional_inputs = {
+            include_media_info: false,
+            include_membership: false,
+          }.merge(opts)
+          input_json = {
+            cursor: cursor,
+            path_prefix: optional_inputs[:path_prefix],
+            include_media_info: optional_inputs[:include_media_info],
+            include_membership: optional_inputs[:include_membership],
+          }
+          response = @session.do_rpc_endpoint("/#{ @namespace }/delta", input_json)
+          Dropbox::API::DeltaResponse.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+        end
+
+        # A long-poll endpoint to wait for changes on an account. In conjunction
+        # with Dropbox::API::Client::Files.delta, this call gives you a low-
+        # latency way to monitor an account for file changes.
+        # Unlike most other
+        # API endpoints, this call does not require OAuth authentication. The
+        # passed in +cursor+ can only be acquired via an authenticated call to
+        # Dropbox::API::Client::Files.delta.
+        #
+        # Required args:
+        # * +cursor+ (+String+):
+        #   A delta cursor as returned from a call to
+        #   Dropbox::API::Client::Files.delta. Note that a cursor returned from a
+        #   call to Dropbox::API::Client::Files.delta with +include_media_info+
+        #   set to  is incompatible with
+        #   Dropbox::API::Client::Files.longpoll_delta and an error will be
+        #   returned.
+        #
+        # Optional args:
+        # * +timeout+ (+Integer+): (defaults to +30+)
+        #   An optional integer indicating a timeout, in seconds. The request will
+        #   block for at most this length of time, plus up to 90 seconds of random
+        #   jitter added to avoid the thundering herd problem
+        #   https://en.wikipedia.org/wiki/Thundering_herd_problem. Care should be
+        #   taken when using this parameter, as some network infrastructure does
+        #   not support long timeouts.
+        #
+        # Returns: LongpollDeltaResponse
+        def longpoll_delta(cursor, opts = {})
+          optional_inputs = {
+            timeout: 30,
+          }.merge(opts)
+          input_json = {
+            cursor: cursor,
+            timeout: optional_inputs[:timeout],
+          }
+          response = @session.do_rpc_endpoint("/#{ @namespace }/longpolldelta", input_json)
+          Dropbox::API::LongpollDeltaResponse.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+        end
+
         # Obtains file information for previous revisions.
         # Only revisions up to
         # thirty days old are available (or more if the Dropbox user has Packrat
         # https://www.dropbox.com/help/113). You can use the revision number in
-        # conjunction with the Dropbox::API::Client::Files.restore` call to
+        # conjunction with the Dropbox::API::Client::Files.restore call to
         # revert the file to its previous state.
         #
         # Required args:
-        # * +path+ (+String+): 
+        # * +path+ (+String+):
         #   The path to the file or folder.
         #
         # Optional args:
-        # * +path_rev+ (+String+): 
+        # * +path_revision+ (+String+):
         #   Specific revision for a given path.
         #
-        # Returns:
-        #   RevisionHistory
+        # Returns: RevisionHistory
         def revisions(path, opts = {})
-          optional_inputs = {
-          }.merge(opts)
+          optional_inputs = opts
           input_json = {
             path: path,
-            path_rev: optional_inputs[:path_rev],
+            path_revision: optional_inputs[:path_revision],
           }
           response = @session.do_rpc_endpoint("/#{ @namespace }/revisions", input_json)
-          # If this is a multi-part response, this won't work yet.
           Dropbox::API::RevisionHistory.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
         # Restores a file path to a previous revision.
         # Unlike downloading a file
         # at a given revision and then re-uploading it, this call is atomic. It
         # also saves a bunch of bandwidth.
         #
         # Required args:
-        # * +path+ (+String+): 
+        # * +path+ (+String+):
         #   The path to the file or folder.
-        # * +rev+ (+String+): 
+        # * +rev+ (+String+):
         #   The revision of a path to restore to.
         #
-        # Returns:
-        #   FileInfo
+        # Returns: File
         def restore(path, rev)
           input_json = {
             path: path,
             rev: rev,
           }
           response = @session.do_rpc_endpoint("/#{ @namespace }/restore", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::FileInfo.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+          Dropbox::API::File.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
         # Returns metadata for all files and folders whose filename contains the
         # given search string as a substring.
         # Searches are limited to the folder
         # path and its sub-folder hierarchy provided in the call.
         #
         # Required args:
-        # * +query+ (+String+): 
+        # * +query+ (+String+):
         #   The search string. This string is split (on spaces) into individual
         #   words. Files and folders will be returned if they contain all words in
         #   the search string.
-        # * +file_limit+ (+Integer+): (defaults to 1000)
+        # * +file_limit+ (+Integer+): (defaults to +1000+)
         #   The maximum and default value is 1,000. No more than file_limit search
         #   results will be returned.
         #
         # Optional args:
-        # * +include_deleted+ (+boolean+): (defaults to false)
+        # * +include_deleted+ (+boolean+): (defaults to +false+)
         #   If this parameter is set to true, then files and folders that have
         #   been deleted will also be included in the search.
-        # * +include_membership+ (+boolean+): (defaults to false)
+        # * +include_membership+ (+boolean+): (defaults to +false+)
         #   If true, metadata for a shared folder will include a list of the
         #   members of the shared folder.
         #
-        # Returns:
-        #   SearchResults
+        # Returns: SearchResults
         def search(query, file_limit = 1000, opts = {})
           optional_inputs = {
             include_deleted: false,
@@ -342,141 +374,126 @@ module Dropbox
             include_membership: optional_inputs[:include_membership],
           }
           response = @session.do_rpc_endpoint("/#{ @namespace }/search", input_json)
-          # If this is a multi-part response, this won't work yet.
           Dropbox::API::SearchResults.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
-        # Gets a preview for a file.
-        # The Content-Type header will be either
-        # application/pdf or text/html. There is an Original-Content-Length
-        # header which contains the size of the preview data.
-        #
-        # Required args:
-        # * +path+ (+String+): 
-        #   The path to the file or folder.
-        #
-        # Optional args:
-        # * +path_rev+ (+String+): 
-        #   Specific revision for a given path.
-        #
-        # Returns:
-        #   FileInfo
-        def preview(path, opts = {})
-          optional_inputs = {
-          }.merge(opts)
-          input_json = {
-            path: path,
-            path_rev: optional_inputs[:path_rev],
-          }
-          response = @session.do_content_endpoint("/#{ @namespace }/preview", input_json)
-          file, metadata = Dropbox::API::HTTP.parse_content_response(response)
-          return file, Dropbox::API::FileInfo.from_json(metadata)
-        end
-        
+
         # Copies a file or folder to a new location.
         #
         # Required args:
-        # * +from_path+ (+String+): 
+        # * +from_path+ (+String+):
         #   Specifies the file or folder to be copied.
-        # * +to_path+ (+String+): 
+        # * +to_path+ (+String+):
         #   Specifies the destination path, including the new name for the file or
         #   folder.
         #
-        # Returns:
-        #   FileInfo
+        # Returns: File
         def copy(from_path, to_path)
           input_json = {
             from_path: from_path,
             to_path: to_path,
           }
           response = @session.do_rpc_endpoint("/#{ @namespace }/copy", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::FileInfo.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+          Dropbox::API::File.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
         # Moves a file or folder to a new location.
         #
         # Required args:
-        # * +from_path+ (+String+): 
+        # * +from_path+ (+String+):
         #   Specifies the file or folder to be copied.
-        # * +to_path+ (+String+): 
+        # * +to_path+ (+String+):
         #   Specifies the destination path, including the new name for the file or
         #   folder.
         #
-        # Returns:
-        #   FileInfo
+        # Returns: File
         def move(from_path, to_path)
           input_json = {
             from_path: from_path,
             to_path: to_path,
           }
           response = @session.do_rpc_endpoint("/#{ @namespace }/move", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::FileInfo.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+          Dropbox::API::File.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
         # Creates a folder.
         #
         # Required args:
-        # * +path+ (+String+): 
+        # * +path+ (+String+):
         #   The path to the new folder to create.
         #
-        # Returns:
-        #   FileInfo
+        # Returns: File
         def folder_create(path)
           input_json = {
             path: path,
           }
-          response = @session.do_rpc_endpoint("/#{ @namespace }/folder-create", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::FileInfo.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+          response = @session.do_rpc_endpoint("/#{ @namespace }/folder_create", input_json)
+          Dropbox::API::File.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
         # Deletes a file or folder.
         #
         # Required args:
-        # * +path+ (+String+): 
+        # * +path+ (+String+):
         #   The path to the file or folder to be deleted.
         #
-        # Returns:
-        #   FileInfo
+        # Returns: File
         def delete(path)
           input_json = {
             path: path,
           }
-          response = @session.do_rpc_endpoint("/#{ @namespace }/delete", input_json)
-          # If this is a multi-part response, this won't work yet.
-          Dropbox::API::FileInfo.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+          response = @session.do_rpc_endpoint("/account/info", input_json)
+          Dropbox::API::File.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
+        # Retrieves a file's children by ID. TODO add explanation of Fileids
+        #
+        # Required args:
+        # * +id+ (+String+):
+        #   The ID whose children are returned.
+        #
+        # Optional args:
+        # * +limit+ (+Integer+): (defaults to +100+)
+        #   The maximum number of children that are returned.
+        #
+        # Returns: ChildrenList
+        def get_children(file_id, opts = {})
+          optional_inputs = {
+            #limit: 100,
+          }.merge(opts)
+          input_json = {
+            file_id: file_id,
+            limit: optional_inputs[:limit],
+          }
+          response = @session.do_rpc_endpoint("/#{ @namespace }/get_children", input_json)
+          Dropbox::API::ChildrenList.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
+        end
+
       end
-      
+
       class Users < EndpointNamespace
         def initialize(session)
           super(session)
           @namespace = 'users'
         end
-      
-        # Get user account information.
+
+        # Get information about a user's account.
         #
         # Required args:
-        # * +account_id+ (+String+): 
+        # * +account_id+ (+String+):
         #   A user's account identifier. Use "me" to get information for the
         #   current account.
         #
-        # Returns:
-        #   AccountInfo
+        # Returns: AccountInfo
         def info(account_id)
           input_json = {
             account_id: account_id,
           }
           response = @session.do_rpc_endpoint("/#{ @namespace }/info", input_json)
-          # If this is a multi-part response, this won't work yet.
           Dropbox::API::AccountInfo.from_json(Dropbox::API::HTTP.parse_rpc_response(response))
         end
-        
+
       end
-      
+
     end
   end
 end

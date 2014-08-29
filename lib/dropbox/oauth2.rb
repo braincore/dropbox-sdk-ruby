@@ -58,7 +58,7 @@ module Dropbox
         headers = {
           'Authorization' => "Basic #{ Base64.encode64(client_credentials).chomp("\n") }"
         }
-        body = {
+        params = {
           'grant_type' => 'authorization_code',
           'code' => code,
           'locale' => @locale,
@@ -70,7 +70,7 @@ module Dropbox
             path,
             client_identifier: @client_identifier,
             headers: headers,
-            body: body,
+            params: params,
             port: @host_info.port)
         json = Dropbox::API::HTTP.parse_response(response)
 

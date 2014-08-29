@@ -17,16 +17,16 @@ module Dropbox
     # Photo-specific information derived from EXIF data.
     #
     # Required fields:
-    # * +time_taken+ (+DateTime+) 
+    # * +time_taken+ (+DateTime+)
     #   When the photo was taken.
-    # * +lat_long+ (+Array+) 
+    # * +lat_long+ (+Array+)
     #   The GPS coordinates where the photo was taken.
-    class PhotoInfo
+    class Photo
       attr_accessor(
           :time_taken,
           :lat_long
       )
-    
+
       def initialize(
           time_taken,
           lat_long
@@ -34,8 +34,8 @@ module Dropbox
         @time_taken = time_taken
         @lat_long = lat_long
       end
-    
-      # Initializes an instance of PhotoInfo from
+
+      # Initializes an instance of Photo from
       # JSON-formatted data.
       def self.from_json(json)
         self.new(
@@ -44,23 +44,23 @@ module Dropbox
         )
       end
     end
-    
+
     # Video-specific information derived from EXIF data.
     #
     # Required fields:
-    # * +time_taken+ (+DateTime+) 
+    # * +time_taken+ (+DateTime+)
     #   When the photo was taken.
-    # * +lat_long+ (+Array+) 
+    # * +lat_long+ (+Array+)
     #   The GPS coordinates where the photo was taken.
-    # * +duration+ (+Float+) 
+    # * +duration+ (+Float+)
     #   Length of video in milliseconds.
-    class VideoInfo
+    class Video
       attr_accessor(
           :time_taken,
           :lat_long,
           :duration
       )
-    
+
       def initialize(
           time_taken,
           lat_long,
@@ -70,8 +70,8 @@ module Dropbox
         @lat_long = lat_long
         @duration = duration
       end
-    
-      # Initializes an instance of VideoInfo from
+
+      # Initializes an instance of Video from
       # JSON-formatted data.
       def self.from_json(json)
         self.new(
@@ -81,126 +81,83 @@ module Dropbox
         )
       end
     end
-    
+
     # This class is a tagged union. For more information on tagged unions,
     # see the README.
     #
     # Media specific information.
     #
     # Member types:
-    # * +photo+ (+PhotoInfo+) 
-    # * +video+ (+VideoInfo+) 
-    class MediaInfo
-    
-      # Allowed tags for this union
-      TAGS = [:photo, :video]
-    
-      def initialize(tag, val = nil)
-        if !TAGS.include?(tag)
-            fail ArgumentError, "Invalid symbol '#{ tag }' for this union."\
-                " #{ TAGS }"
-        end
-        @tag = tag
-        @val = val
-      end
-    
-      # If the union's type is a symbol field, returns the symbol. If the type
-      # is a struct, returns the struct. You can also use each individual
-      # attribute accessor to retrieve the value for non-symbol union types.
-      def value
-        @val.nil? ? @tag : @val
-      end
-    
-      # Returns this object as a hash for JSON conversion.
-      def as_json(options = {})
-        if @val.nil?
-          @tag.to_s
-        else
-          { @tag => @val }
-        end
-      end
-    
+    # * +photo+ (+Photo+)
+    # * +video+ (+Video+)
+    module MediaInfo
+
       # Initializes an instance of MediaInfo from
       # JSON-formatted data.
       def self.from_json(json)
         if json.is_a?(Hash)
           array = json.flatten
           if array.length != 2
-            fail ArgumentError, "JSON should have one key/value pair."
+            fail ArgumentError, 'JSON should have one key/value pair.'
           end
           tag = array[0].to_sym
-          if tag == :photo
-            val = PhotoInfo.from_json(array[1])
-          end
-          if tag == :video
-            val = VideoInfo.from_json(array[1])
-          end
+          val = array[1]
         else
-          # json is a String
+          # json is just a String, so check possible symbol types.
+          # If there are no symbol types, this section will be empty.
           tag = json.to_sym
           val = nil
         end
-        return self.new(tag, val)
-      end
-    
-      # Initializes an instance of MediaInfo with the
-      # photo tag.
-      def self.photo
-        self.new(:photo)
-      end
-    
-      # Checks if this union has the +photo+ tag.
-      def photo?
-        @tag == :photo
-      end
-    
-      # Retrieves the value for this union for the +photo+
-      # tag.
-      def photo
-        if @tag == :photo
-          @val
-        else
-          fail "Union is not this type."
+
+        if tag == :photo
+          return Photo.from_json(val)
+        end
+        if tag == :video
+          return Video.from_json(val)
         end
       end
-    
-      # Initializes an instance of MediaInfo with the
-      # video tag.
-      def self.video
-        self.new(:video)
+
+      # Initializes an instance of the photo tag.
+      def self.photo(
+          time_taken,
+          lat_long
+      )
+        { photo: Photo.new(
+          time_taken,
+          lat_long
+        ) }
       end
-    
-      # Checks if this union has the +video+ tag.
-      def video?
-        @tag == :video
-      end
-    
-      # Retrieves the value for this union for the +video+
-      # tag.
-      def video
-        if @tag == :video
-          @val
-        else
-          fail "Union is not this type."
-        end
+
+      # Initializes an instance of the video tag.
+      def self.video(
+          time_taken,
+          lat_long,
+          duration
+      )
+        { video: Video.new(
+          time_taken,
+          lat_long,
+          duration
+        ) }
       end
     end
-    
+
     # Information specific to a shared folder.
     #
     # Required fields:
-    # * +id+ (+String+) 
+    # * +id+ (+String+)
+    #   The unique identifier for this shared folder.
     class SharedFolder
       attr_accessor(
           :id
       )
-    
+
       def initialize(
           id
       )
         @id = id
       end
-    
+
       # Initializes an instance of SharedFolder from
       # JSON-formatted data.
       def self.from_json(json)
@@ -209,557 +166,727 @@ module Dropbox
         )
       end
     end
-    
+
+    # Required fields:
+    # * +id+ (+String+)
+    #   A unique identifier for the ancestor.
+    # * +id_revision+ (+String+)
+    #   The revision of the ancestor.
+    # * +type+ (+String+)
+    #   The type of relationship with the descendant. Options are ,  and .
+    class Ancestor
+      attr_accessor(
+          :id,
+          :id_revision,
+          :type
+      )
+
+      def initialize(
+          id,
+          id_revision,
+          type
+      )
+        @id = id
+        @id_revision = id_revision
+        @type = type
+      end
+
+      # Initializes an instance of Ancestor from
+      # JSON-formatted data.
+      def self.from_json(json)
+        self.new(
+            json['id'],
+            json['id_revision'],
+            json['type'],
+        )
+      end
+    end
+
     # A file or folder entry.
     #
     # Required fields:
-    # * +id+ (+String+) 
+    # * +id+ (+String+)
     #   A unique identifier for the file.
-    # * +id_rev+ (+Integer+) 
+    # * +id_revision+ (+Integer+)
     #   A unique identifier for the current revision of a file. This field is
     #   the same rev as elsewhere in the API and can be used to detect changes
     #   and avoid conflicts.
-    # * +path+ (+String+) 
+    # * +path+ (+String+)
     #   Path to file or folder.
-    # * +path_rev+ (+Integer+) 
+    # * +path_revision+ (+Integer+)
     #   A unique identifier for the current revision of a file path. This
     #   field is the same rev as elsewhere in the API and can be used to
     #   detect changes and avoid conflicts.
-    # * +shared_folder+ (+SharedFolder+) 
-    #   If this a shared folder, information about it.
-    # * +modified+ (+DateTime+) 
+    # * +modified+ (+DateTime+)
     #   The last time the file was modified on Dropbox, in the standard
     #   Timestamp format (+nil+ for root folder).
-    # * +is_deleted+ (+boolean+) 
+    # * +is_deleted+ (+boolean+)
     #   Whether the given entry is deleted.
-    class EntryInfo
-      attr_accessor(
-          :id,
-          :id_rev,
-          :path,
-          :path_rev,
-          :shared_folder,
-          :modified,
-          :is_deleted
-      )
-    
-      def initialize(
-          id,
-          id_rev,
-          path,
-          path_rev,
-          shared_folder,
-          modified,
-          is_deleted
-      )
-        @id = id
-        @id_rev = id_rev
-        @path = path
-        @path_rev = path_rev
-        @shared_folder = shared_folder
-        @modified = modified
-        @is_deleted = is_deleted
-      end
-    
-      # Initializes an instance of EntryInfo from
-      # JSON-formatted data.
-      def self.from_json(json)
-        self.new(
-            json['id'],
-            json['id_rev'],
-            json['path'],
-            json['path_rev'],
-            json['shared_folder'].nil? ? nil : SharedFolder.from_json(json['shared_folder']),
-            json['modified'].nil? ? nil : Dropbox::API::convert_date(json['modified']),
-            json['is_deleted'],
-        )
-      end
-    end
-    
-    # Describes a file.
-    #
-    # Required fields:
-    # * +id+ (+String+) 
-    #   A unique identifier for the file.
-    # * +id_rev+ (+Integer+) 
-    #   A unique identifier for the current revision of a file. This field is
-    #   the same rev as elsewhere in the API and can be used to detect changes
-    #   and avoid conflicts.
-    # * +path+ (+String+) 
-    #   Path to file or folder.
-    # * +path_rev+ (+Integer+) 
-    #   A unique identifier for the current revision of a file path. This
-    #   field is the same rev as elsewhere in the API and can be used to
-    #   detect changes and avoid conflicts.
-    # * +shared_folder+ (+SharedFolder+) 
-    #   If this a shared folder, information about it.
-    # * +modified+ (+DateTime+) 
-    #   The last time the file was modified on Dropbox, in the standard
-    #   Timestamp format (+nil+ for root folder).
-    # * +is_deleted+ (+boolean+) 
-    #   Whether the given entry is deleted.
-    # * +size+ (+Integer+) 
-    #   File size in bytes.
-    # * +mime_type+ (+String+) 
-    #   The Internet media type determined by the file extension.
+    # * +ancestor+ (+Ancestor+)
+    #   The ancestor of this file or folder.
     #
     # Optional fields:
-    # * +media_info+ (+MediaInfo+) 
-    #   Information specific to photo and video media.
-    class FileInfo < EntryInfo
+    # * +read_only+ (+boolean+)
+    #   For shared folders, this field specifies whether the user has read-
+    #   only access to the folder. For files within a shared folder, this
+    #   specifies the read-only status of the parent shared folder.
+    class BaseFile
       attr_accessor(
-          :size,
-          :mime_type,
-          :media_info
+          :id,
+          :id_revision,
+          :path,
+          :path_revision,
+          :modified,
+          :is_deleted,
+          :ancestor,
+          :read_only
       )
-    
+
       def initialize(
           id,
-          id_rev,
+          id_revision,
           path,
-          path_rev,
-          shared_folder,
+          path_revision,
           modified,
           is_deleted,
-          size,
-          mime_type,
-          media_info = nil
+          ancestor,
+          read_only = nil
       )
         @id = id
-        @id_rev = id_rev
+        @id_revision = id_revision
         @path = path
-        @path_rev = path_rev
-        @shared_folder = shared_folder
+        @path_revision = path_revision
         @modified = modified
         @is_deleted = is_deleted
-        @size = size
-        @mime_type = mime_type
-        @media_info = media_info
+        @ancestor = ancestor
+        @read_only = read_only
       end
-    
-      # Initializes an instance of FileInfo from
+
+      # Initializes an instance of BaseFile from
       # JSON-formatted data.
       def self.from_json(json)
         self.new(
             json['id'],
-            json['id_rev'],
+            json['id_revision'],
             json['path'],
-            json['path_rev'],
-            json['shared_folder'].nil? ? nil : SharedFolder.from_json(json['shared_folder']),
+            json['path_revision'],
             json['modified'].nil? ? nil : Dropbox::API::convert_date(json['modified']),
             json['is_deleted'],
-            json['size'],
-            json['mime_type'].nil? ? nil : json['mime_type'],
-            !json.include?('media_info') ? nil : MediaInfo.from_json(json['media_info']),
+            Ancestor.from_json(json['ancestor']),
+            !json.include?('read_only') ? nil : json['read_only'],
         )
       end
     end
-    
-    # Describes a folder.
+
+    # Required fields:
+    # * +account_id+ (+String+)
+    #   Account ID of the user.
+    # * +display_name+ (+String+)
+    #   Name of the user.
+    # * +same_team+ (+boolean+)
+    #   Whether this user is part of the same team.
+    class SharingUser
+      attr_accessor(
+          :account_id,
+          :display_name,
+          :same_team
+      )
+
+      def initialize(
+          account_id,
+          display_name,
+          same_team
+      )
+        @account_id = account_id
+        @display_name = display_name
+        @same_team = same_team
+      end
+
+      # Initializes an instance of SharingUser from
+      # JSON-formatted data.
+      def self.from_json(json)
+        self.new(
+            json['account_id'],
+            json['display_name'],
+            json['same_team'],
+        )
+      end
+    end
+
+    # Required fields:
+    # * +account_id+ (+String+)
+    #   Account ID of the user.
+    # * +display_name+ (+String+)
+    #   Name of the user.
+    # * +same_team+ (+boolean+)
+    #   Whether this user is part of the same team.
+    class SharingUser
+      attr_accessor(
+          :account_id,
+          :display_name,
+          :same_team
+      )
+
+      def initialize(
+          account_id,
+          display_name,
+          same_team
+      )
+        @account_id = account_id
+        @display_name = display_name
+        @same_team = same_team
+      end
+
+      # Initializes an instance of SharingUser from
+      # JSON-formatted data.
+      def self.from_json(json)
+        self.new(
+            json['account_id'],
+            json['display_name'],
+            json['same_team'],
+        )
+      end
+    end
+
+    # Information about a file.
     #
     # Required fields:
-    # * +id+ (+String+) 
+    # * +id+ (+String+)
     #   A unique identifier for the file.
-    # * +id_rev+ (+Integer+) 
+    # * +id_revision+ (+Integer+)
     #   A unique identifier for the current revision of a file. This field is
     #   the same rev as elsewhere in the API and can be used to detect changes
     #   and avoid conflicts.
-    # * +path+ (+String+) 
+    # * +path+ (+String+)
     #   Path to file or folder.
-    # * +path_rev+ (+Integer+) 
+    # * +path_revision+ (+Integer+)
     #   A unique identifier for the current revision of a file path. This
     #   field is the same rev as elsewhere in the API and can be used to
     #   detect changes and avoid conflicts.
-    # * +shared_folder+ (+SharedFolder+) 
-    #   If this a shared folder, information about it.
-    # * +modified+ (+DateTime+) 
+    # * +modified+ (+DateTime+)
     #   The last time the file was modified on Dropbox, in the standard
     #   Timestamp format (+nil+ for root folder).
-    # * +is_deleted+ (+boolean+) 
+    # * +is_deleted+ (+boolean+)
     #   Whether the given entry is deleted.
-    class FolderInfo < EntryInfo
-    
+    # * +ancestor+ (+Ancestor+)
+    #   The ancestor of this file or folder.
+    # * +size+ (+Integer+)
+    #   File size in bytes.
+    #
+    # Optional fields:
+    # * +read_only+ (+boolean+)
+    #   For shared folders, this field specifies whether the user has read-
+    #   only access to the folder. For files within a shared folder, this
+    #   specifies the read-only status of the parent shared folder.
+    # * +media_info+ (+MediaInfo+)
+    #   Information specific to photo and video media.
+    # * +parent_shared_folder_id+ (+String+)
+    #   For files within a shared folder, this field specifies the ID of the
+    #   containing shared folder.
+    # * +modifier+ (+SharingUser+)
+    #   The user who last modified this file.
+    class File < BaseFile
+      attr_accessor(
+          :size,
+          :media_info,
+          :parent_shared_folder_id,
+          :modifier
+      )
+
       def initialize(
           id,
-          id_rev,
+          id_revision,
           path,
-          path_rev,
-          shared_folder,
+          path_revision,
           modified,
-          is_deleted
+          is_deleted,
+          ancestor,
+          size,
+          read_only = nil,
+          media_info = nil,
+          parent_shared_folder_id = nil,
+          modifier = nil
       )
         @id = id
-        @id_rev = id_rev
+        @id_revision = id_revision
         @path = path
-        @path_rev = path_rev
-        @shared_folder = shared_folder
+        @path_revision = path_revision
         @modified = modified
         @is_deleted = is_deleted
+        @ancestor = ancestor
+        @size = size
+        @read_only = read_only
+        @media_info = media_info
+        @parent_shared_folder_id = parent_shared_folder_id
+        @modifier = modifier
       end
-    
-      # Initializes an instance of FolderInfo from
+
+      # Initializes an instance of File from
       # JSON-formatted data.
       def self.from_json(json)
         self.new(
             json['id'],
-            json['id_rev'],
+            json['id_revision'],
             json['path'],
-            json['path_rev'],
-            json['shared_folder'].nil? ? nil : SharedFolder.from_json(json['shared_folder']),
+            json['path_revision'],
             json['modified'].nil? ? nil : Dropbox::API::convert_date(json['modified']),
             json['is_deleted'],
+            Ancestor.from_json(json['ancestor']),
+            json['size'],
+            !json.include?('read_only') ? nil : json['read_only'],
+            !json.include?('media_info') ? nil : MediaInfo.from_json(json['media_info']),
+            !json.include?('parent_shared_folder_id') ? nil : json['parent_shared_folder_id'],
+            !json.include?('modifier') ? nil : SharingUser.from_json(json['modifier']),
         )
       end
     end
-    
+
+    # Required fields:
+    # * +user+ (+SharingUser+)
+    #   User information.
+    # * +role+ (+String+)
+    #   A user may be an , , or .
+    # * +active+ (+boolean+)
+    #   Whether the user is an active member of the shared folder.
+    class SharingMember
+      attr_accessor(
+          :user,
+          :role,
+          :active
+      )
+
+      def initialize(
+          user,
+          role,
+          active
+      )
+        @user = user
+        @role = role
+        @active = active
+      end
+
+      # Initializes an instance of SharingMember from
+      # JSON-formatted data.
+      def self.from_json(json)
+        self.new(
+            SharingUser.from_json(json['user']),
+            json['role'],
+            json['active'],
+        )
+      end
+    end
+
+    # Information specific to a shared folder.
+    #
+    # Required fields:
+    # * +id+ (+String+)
+    #   The unique identifier for this shared folder.
+    # * +members+ (+Array+)
+    #   List of members who have access to this folder.
+    class SharedFolder
+      attr_accessor(
+          :id,
+          :members
+      )
+
+      def initialize(
+          id,
+          members
+      )
+        @id = id
+        @members = members
+      end
+
+      # Initializes an instance of SharedFolder from
+      # JSON-formatted data.
+      def self.from_json(json)
+        self.new(
+            json['id'],
+            json['members'].collect { |elem| SharingMember.from_json(elem) },
+        )
+      end
+    end
+
+    # Information about a folder.
+    #
+    # Required fields:
+    # * +id+ (+String+)
+    #   A unique identifier for the file.
+    # * +id_revision+ (+Integer+)
+    #   A unique identifier for the current revision of a file. This field is
+    #   the same rev as elsewhere in the API and can be used to detect changes
+    #   and avoid conflicts.
+    # * +path+ (+String+)
+    #   Path to file or folder.
+    # * +path_revision+ (+Integer+)
+    #   A unique identifier for the current revision of a file path. This
+    #   field is the same rev as elsewhere in the API and can be used to
+    #   detect changes and avoid conflicts.
+    # * +modified+ (+DateTime+)
+    #   The last time the file was modified on Dropbox, in the standard
+    #   Timestamp format (+nil+ for root folder).
+    # * +is_deleted+ (+boolean+)
+    #   Whether the given entry is deleted.
+    # * +ancestor+ (+Ancestor+)
+    #   The ancestor of this file or folder.
+    #
+    # Optional fields:
+    # * +read_only+ (+boolean+)
+    #   For shared folders, this field specifies whether the user has read-
+    #   only access to the folder. For files within a shared folder, this
+    #   specifies the read-only status of the parent shared folder.
+    # * +shared_folder+ (+SharedFolder+)
+    #   If this a shared folder, information about it.
+    class Folder < BaseFile
+      attr_accessor(
+          :shared_folder
+      )
+
+      def initialize(
+          id,
+          id_revision,
+          path,
+          path_revision,
+          modified,
+          is_deleted,
+          ancestor,
+          read_only = nil,
+          shared_folder = nil
+      )
+        @id = id
+        @id_revision = id_revision
+        @path = path
+        @path_revision = path_revision
+        @modified = modified
+        @is_deleted = is_deleted
+        @ancestor = ancestor
+        @read_only = read_only
+        @shared_folder = shared_folder
+      end
+
+      # Initializes an instance of Folder from
+      # JSON-formatted data.
+      def self.from_json(json)
+        self.new(
+            json['id'],
+            json['id_revision'],
+            json['path'],
+            json['path_revision'],
+            json['modified'].nil? ? nil : Dropbox::API::convert_date(json['modified']),
+            json['is_deleted'],
+            Ancestor.from_json(json['ancestor']),
+            !json.include?('read_only') ? nil : json['read_only'],
+            !json.include?('shared_folder') ? nil : SharedFolder.from_json(json['shared_folder']),
+        )
+      end
+    end
+
     # This class is a tagged union. For more information on tagged unions,
     # see the README.
     #
     # A file or folder in a Dropbox.
     #
     # Member types:
-    # * +file+ (+FileInfo+) 
-    # * +folder+ (+FolderInfo+) 
-    class FileOrFolderInfo
-    
-      # Allowed tags for this union
-      TAGS = [:file, :folder]
-    
-      def initialize(tag, val = nil)
-        if !TAGS.include?(tag)
-            fail ArgumentError, "Invalid symbol '#{ tag }' for this union."\
-                " #{ TAGS }"
-        end
-        @tag = tag
-        @val = val
-      end
-    
-      # If the union's type is a symbol field, returns the symbol. If the type
-      # is a struct, returns the struct. You can also use each individual
-      # attribute accessor to retrieve the value for non-symbol union types.
-      def value
-        @val.nil? ? @tag : @val
-      end
-    
-      # Returns this object as a hash for JSON conversion.
-      def as_json(options = {})
-        if @val.nil?
-          @tag.to_s
-        else
-          { @tag => @val }
-        end
-      end
-    
-      # Initializes an instance of FileOrFolderInfo from
+    # * +file+ (+File+)
+    # * +folder+ (+Folder+)
+    module Entry
+
+      # Initializes an instance of Entry from
       # JSON-formatted data.
       def self.from_json(json)
         if json.is_a?(Hash)
           array = json.flatten
           if array.length != 2
-            fail ArgumentError, "JSON should have one key/value pair."
+            fail ArgumentError, 'JSON should have one key/value pair.'
           end
           tag = array[0].to_sym
-          if tag == :file
-            val = FileInfo.from_json(array[1])
-          end
-          if tag == :folder
-            val = FolderInfo.from_json(array[1])
-          end
+          val = array[1]
         else
-          # json is a String
+          # json is just a String, so check possible symbol types.
+          # If there are no symbol types, this section will be empty.
           tag = json.to_sym
           val = nil
         end
-        return self.new(tag, val)
-      end
-    
-      # Initializes an instance of FileOrFolderInfo with the
-      # file tag.
-      def self.file
-        self.new(:file)
-      end
-    
-      # Checks if this union has the +file+ tag.
-      def file?
-        @tag == :file
-      end
-    
-      # Retrieves the value for this union for the +file+
-      # tag.
-      def file
-        if @tag == :file
-          @val
-        else
-          fail "Union is not this type."
+
+        if tag == :file
+          return File.from_json(val)
+        end
+        if tag == :folder
+          return Folder.from_json(val)
         end
       end
-    
-      # Initializes an instance of FileOrFolderInfo with the
-      # folder tag.
-      def self.folder
-        self.new(:folder)
+
+      # Initializes an instance of the file tag.
+      def self.file(
+          id,
+          id_revision,
+          path,
+          path_revision,
+          modified,
+          is_deleted,
+          ancestor,
+          size,
+          read_only = nil,
+          media_info = nil,
+          parent_shared_folder_id = nil,
+          modifier = nil
+      )
+        { file: File.new(
+          id,
+          id_revision,
+          path,
+          path_revision,
+          modified,
+          is_deleted,
+          ancestor,
+          size,
+          read_only,
+          media_info,
+          parent_shared_folder_id,
+          modifier
+        ) }
       end
-    
-      # Checks if this union has the +folder+ tag.
-      def folder?
-        @tag == :folder
-      end
-    
-      # Retrieves the value for this union for the +folder+
-      # tag.
-      def folder
-        if @tag == :folder
-          @val
-        else
-          fail "Union is not this type."
-        end
+
+      # Initializes an instance of the folder tag.
+      def self.folder(
+          id,
+          id_revision,
+          path,
+          path_revision,
+          modified,
+          is_deleted,
+          ancestor,
+          read_only = nil,
+          shared_folder = nil
+      )
+        { folder: Folder.new(
+          id,
+          id_revision,
+          path,
+          path_revision,
+          modified,
+          is_deleted,
+          ancestor,
+          read_only,
+          shared_folder
+        ) }
       end
     end
-    
+
     # Required fields:
-    # * +id+ (+String+) 
+    # * +id+ (+String+)
     #   A unique identifier for the file.
-    # * +id_rev+ (+Integer+) 
+    # * +id_revision+ (+Integer+)
     #   A unique identifier for the current revision of a file. This field is
     #   the same rev as elsewhere in the API and can be used to detect changes
     #   and avoid conflicts.
-    # * +path+ (+String+) 
+    # * +path+ (+String+)
     #   Path to file or folder.
-    # * +path_rev+ (+Integer+) 
+    # * +path_revision+ (+Integer+)
     #   A unique identifier for the current revision of a file path. This
     #   field is the same rev as elsewhere in the API and can be used to
     #   detect changes and avoid conflicts.
-    # * +shared_folder+ (+SharedFolder+) 
-    #   If this a shared folder, information about it.
-    # * +modified+ (+DateTime+) 
+    # * +modified+ (+DateTime+)
     #   The last time the file was modified on Dropbox, in the standard
     #   Timestamp format (+nil+ for root folder).
-    # * +is_deleted+ (+boolean+) 
+    # * +is_deleted+ (+boolean+)
     #   Whether the given entry is deleted.
-    # * +contents+ (+Array+) 
+    # * +ancestor+ (+Ancestor+)
+    #   The ancestor of this file or folder.
+    # * +contents+ (+Array+)
     #   Ordered list of all contained files and folders.
-    class FolderInfoAndContents < FolderInfo
+    #
+    # Optional fields:
+    # * +read_only+ (+boolean+)
+    #   For shared folders, this field specifies whether the user has read-
+    #   only access to the folder. For files within a shared folder, this
+    #   specifies the read-only status of the parent shared folder.
+    # * +shared_folder+ (+SharedFolder+)
+    #   If this a shared folder, information about it.
+    class FolderAndContents < Folder
       attr_accessor(
           :contents
       )
-    
+
       def initialize(
           id,
-          id_rev,
+          id_revision,
           path,
-          path_rev,
-          shared_folder,
+          path_revision,
           modified,
           is_deleted,
-          contents
+          ancestor,
+          contents,
+          read_only = nil,
+          shared_folder = nil
       )
         @id = id
-        @id_rev = id_rev
+        @id_revision = id_revision
         @path = path
-        @path_rev = path_rev
-        @shared_folder = shared_folder
+        @path_revision = path_revision
         @modified = modified
         @is_deleted = is_deleted
+        @ancestor = ancestor
         @contents = contents
+        @read_only = read_only
+        @shared_folder = shared_folder
       end
-    
-      # Initializes an instance of FolderInfoAndContents from
+
+      # Initializes an instance of FolderAndContents from
       # JSON-formatted data.
       def self.from_json(json)
         self.new(
             json['id'],
-            json['id_rev'],
+            json['id_revision'],
             json['path'],
-            json['path_rev'],
-            json['shared_folder'].nil? ? nil : SharedFolder.from_json(json['shared_folder']),
+            json['path_revision'],
             json['modified'].nil? ? nil : Dropbox::API::convert_date(json['modified']),
             json['is_deleted'],
-            json['contents'].collect { |elem| FileOrFolderInfo.from_json(elem) },
+            Ancestor.from_json(json['ancestor']),
+            json['contents'].collect { |elem| Entry.from_json(elem) },
+            !json.include?('read_only') ? nil : json['read_only'],
+            !json.include?('shared_folder') ? nil : SharedFolder.from_json(json['shared_folder']),
         )
       end
     end
-    
-    
-    
-    # On a write conflict, overwrite the existing file if the parent rev
-    # matches.
+
+    # On a write conflict, overwrite the existing file if the parent
+    # revision matches.
     #
     # Required fields:
-    # * +parent_rev+ (+String+) 
+    # * +parent_revision+ (+String+)
     #   The revision to be updated.
-    # * +auto_rename+ (+boolean+) 
+    # * +auto_rename+ (+boolean+)
     #   Whether the new file should be renamed on a conflict.
     class UpdateParentRev
       attr_accessor(
-          :parent_rev,
+          :parent_revision,
           :auto_rename
       )
-    
+
       def initialize(
-          parent_rev,
+          parent_revision,
           auto_rename
       )
-        @parent_rev = parent_rev
+        @parent_revision = parent_revision
         @auto_rename = auto_rename
       end
-    
+
       # Initializes an instance of UpdateParentRev from
       # JSON-formatted data.
       def self.from_json(json)
         self.new(
-            json['parent_rev'],
+            json['parent_revision'],
             json['auto_rename'],
         )
       end
     end
-    
+
     # This class is a tagged union. For more information on tagged unions,
     # see the README.
     #
     # Policy for managing write conflicts.
     #
     # Member types:
-    # * +reject+ 
+    # * +reject+
     #   On a write conflict, reject the new file.
-    # * +overwrite+ 
+    # * +overwrite+
     #   On a write conflict, overwrite the existing file.
-    # * +rename+ 
+    # * +rename+
     #   On a write conflict, rename the new file with a numerical suffix.
-    # * +update_if_matching_parent_rev+ (+UpdateParentRev+) 
+    # * +update_if_matching_parent_rev+ (+UpdateParentRev+)
     #   On a write conflict, overwrite the existing file.
-    class WriteConflictPolicy
-    
-      # Allowed tags for this union
-      TAGS = [:reject, :overwrite, :rename, :update_if_matching_parent_rev]
-    
-      def initialize(tag, val = nil)
-        if !TAGS.include?(tag)
-            fail ArgumentError, "Invalid symbol '#{ tag }' for this union."\
-                " #{ TAGS }"
-        end
-        @tag = tag
-        @val = val
-      end
-    
-      # If the union's type is a symbol field, returns the symbol. If the type
-      # is a struct, returns the struct. You can also use each individual
-      # attribute accessor to retrieve the value for non-symbol union types.
-      def value
-        @val.nil? ? @tag : @val
-      end
-    
-      # Returns this object as a hash for JSON conversion.
-      def as_json(options = {})
-        if @val.nil?
-          @tag.to_s
-        else
-          { @tag => @val }
-        end
-      end
-    
+    module WriteConflictPolicy
+
       # Initializes an instance of WriteConflictPolicy from
       # JSON-formatted data.
       def self.from_json(json)
         if json.is_a?(Hash)
           array = json.flatten
           if array.length != 2
-            fail ArgumentError, "JSON should have one key/value pair."
+            fail ArgumentError, 'JSON should have one key/value pair.'
           end
           tag = array[0].to_sym
-          if tag == :reject
-            val = nil
-          end
-          if tag == :overwrite
-            val = nil
-          end
-          if tag == :rename
-            val = nil
-          end
-          if tag == :update_if_matching_parent_rev
-            val = UpdateParentRev.from_json(array[1])
-          end
+          val = array[1]
         else
-          # json is a String
+          # json is just a String, so check possible symbol types.
+          # If there are no symbol types, this section will be empty.
           tag = json.to_sym
           val = nil
         end
-        return self.new(tag, val)
-      end
-    
-      # Initializes an instance of WriteConflictPolicy with the
-      # reject tag.
-      def self.reject
-        self.new(:reject)
-      end
-    
-      # Checks if this union has the +reject+ tag.
-      def reject?
-        @tag == :reject
-      end
-    
-      # Initializes an instance of WriteConflictPolicy with the
-      # overwrite tag.
-      def self.overwrite
-        self.new(:overwrite)
-      end
-    
-      # Checks if this union has the +overwrite+ tag.
-      def overwrite?
-        @tag == :overwrite
-      end
-    
-      # Initializes an instance of WriteConflictPolicy with the
-      # rename tag.
-      def self.rename
-        self.new(:rename)
-      end
-    
-      # Checks if this union has the +rename+ tag.
-      def rename?
-        @tag == :rename
-      end
-    
-      # Initializes an instance of WriteConflictPolicy with the
-      # update_if_matching_parent_rev tag.
-      def self.update_if_matching_parent_rev
-        self.new(:update_if_matching_parent_rev)
-      end
-    
-      # Checks if this union has the +update_if_matching_parent_rev+ tag.
-      def update_if_matching_parent_rev?
-        @tag == :update_if_matching_parent_rev
-      end
-    
-      # Retrieves the value for this union for the +update_if_matching_parent_rev+
-      # tag.
-      def update_if_matching_parent_rev
-        if @tag == :update_if_matching_parent_rev
-          @val
-        else
-          fail "Union is not this type."
+
+        if tag == :reject
+          if val.nil?
+            return tag
+          else
+            fail ArgumentError, "Tag '#{ tag }' cannot have a value associated "\
+                "because it is a symbol."
+          end
+        end
+        if tag == :overwrite
+          if val.nil?
+            return tag
+          else
+            fail ArgumentError, "Tag '#{ tag }' cannot have a value associated "\
+                "because it is a symbol."
+          end
+        end
+        if tag == :rename
+          if val.nil?
+            return tag
+          else
+            fail ArgumentError, "Tag '#{ tag }' cannot have a value associated "\
+                "because it is a symbol."
+          end
+        end
+        if tag == :update_if_matching_parent_rev
+          return UpdateParentRev.from_json(val)
         end
       end
+
+      # Initializes an instance of the reject tag.
+      def self.reject
+        :reject
+      end
+
+      # Initializes an instance of the overwrite tag.
+      def self.overwrite
+        :overwrite
+      end
+
+      # Initializes an instance of the rename tag.
+      def self.rename
+        :rename
+      end
+
+      # Initializes an instance of the update_if_matching_parent_rev tag.
+      def self.update_if_matching_parent_rev(
+          parent_revision,
+          auto_rename
+      )
+        { update_if_matching_parent_rev: UpdateParentRev.new(
+          parent_revision,
+          auto_rename
+        ) }
+      end
     end
-    
-    
-    
+
     # Required fields:
-    # * +reset+ (+boolean+) 
-    #   If , clear your local state before processing the delta entries. reset
-    #   is always  on the initial call to Dropbox::API::Client::Files.delta`
-    #   (i.e. when no cursor is passed in). Otherwise, it is  in rare
-    #   situations, such as after server or account maintenance, or if a user
-    #   deletes their app folder.
-    # * +cursor+ (+String+) 
+    # * +reset+ (+boolean+)
+    #   If , clear your local state. There will be no +entries+. Then call
+    #   Dropbox::API::Client::Files.delta with no cursor. +reset+ will be
+    #   only on rare occasions, such as after server or account maintenance,
+    #   or if a user deletes their app folder.
+    # * +cursor+ (+String+)
     #   A string that encodes the latest information that has been returned.
-    #   On the next call to Dropbox::API::Client::Files.delta`, pass in this
+    #   On the next call to Dropbox::API::Client::Files.delta, pass in this
     #   value.
-    # * +has_more+ (+boolean+) 
+    # * +has_more+ (+boolean+)
     #   If , then there are more entries available; you can call
-    #   Dropbox::API::Client::Files.delta` again immediately to retrieve those
+    #   Dropbox::API::Client::Files.delta again immediately to retrieve those
     #   entries. If , then wait for at least five minutes (preferably longer)
     #   before checking again.
-    # * +entries+ (+Array+) 
+    # * +entries+ (+Array+)
     #   Each file or directory that has been changed.
     class DeltaResponse
       attr_accessor(
@@ -768,7 +895,7 @@ module Dropbox
           :has_more,
           :entries
       )
-    
+
       def initialize(
           reset,
           cursor,
@@ -780,7 +907,7 @@ module Dropbox
         @has_more = has_more
         @entries = entries
       end
-    
+
       # Initializes an instance of DeltaResponse from
       # JSON-formatted data.
       def self.from_json(json)
@@ -788,33 +915,31 @@ module Dropbox
             json['reset'],
             json['cursor'],
             json['has_more'],
-            json['entries'].collect { |elem| FileOrFolderInfo.from_json(elem) },
+            json['entries'].collect { |elem| Entry.from_json(elem) },
         )
       end
     end
-    
-    
-    
+
     # The connection will block until there are changes available or a
     # timeout occurs.
     #
     # Required fields:
-    # * +changes+ (+boolean+) 
+    # * +changes+ (+boolean+)
     #   Indicates whether new changes are available. If this value is , you
-    #   should call Dropbox::API::Client::Files.delta` to retrieve the
-    #   changes. If this value is , it means the call to
-    #   Dropbox::API::Client::Files.longpoll_delta` timed out.
+    #   should call Dropbox::API::Client::Files.delta to retrieve the changes.
+    #   If this value is , it means the call to
+    #   Dropbox::API::Client::Files.longpoll_delta timed out.
     #
     # Optional fields:
-    # * +backoff+ (+Integer+) 
+    # * +backoff+ (+Integer+)
     #   If present, the value indicates how many seconds your code should wait
-    #   before calling Dropbox::API::Client::Files.longpoll_delta` again.
+    #   before calling Dropbox::API::Client::Files.longpoll_delta again.
     class LongpollDeltaResponse
       attr_accessor(
           :changes,
           :backoff
       )
-    
+
       def initialize(
           changes,
           backoff = nil
@@ -822,7 +947,7 @@ module Dropbox
         @changes = changes
         @backoff = backoff
       end
-    
+
       # Initializes an instance of LongpollDeltaResponse from
       # JSON-formatted data.
       def self.from_json(json)
@@ -832,44 +957,41 @@ module Dropbox
         )
       end
     end
-    
-    
+
     # Required fields:
-    # * +revisions+ (+Array+) 
+    # * +revisions+ (+Array+)
     #   List of file or folders that have been part of the revision history.
     class RevisionHistory
       attr_accessor(
           :revisions
       )
-    
+
       def initialize(
           revisions
       )
         @revisions = revisions
       end
-    
+
       # Initializes an instance of RevisionHistory from
       # JSON-formatted data.
       def self.from_json(json)
         self.new(
-            json['revisions'].collect { |elem| FileOrFolderInfo.from_json(elem) },
+            json['revisions'].collect { |elem| Entry.from_json(elem) },
         )
       end
     end
-    
-    
-    
+
     # Required fields:
-    # * +has_more+ (+boolean+) 
+    # * +has_more+ (+boolean+)
     #   If true, then the number of files found exceeds the file_limit.
-    # * +results+ (+Array+) 
+    # * +results+ (+Array+)
     #   List of file or folders that match the search query.
     class SearchResults
       attr_accessor(
           :has_more,
           :results
       )
-    
+
       def initialize(
           has_more,
           results
@@ -877,36 +999,52 @@ module Dropbox
         @has_more = has_more
         @results = results
       end
-    
+
       # Initializes an instance of SearchResults from
       # JSON-formatted data.
       def self.from_json(json)
         self.new(
             json['has_more'],
-            json['results'].collect { |elem| FileOrFolderInfo.from_json(elem) },
+            json['results'].collect { |elem| Entry.from_json(elem) },
         )
       end
     end
-    
-    
-    
-    
-    
-    
-    
-    
+
+    # Required fields:
+    # * +results+ (+Array+)
+    #   The IDs that are descendants of the query ID.
+    class ChildrenList
+      attr_accessor(
+          :results
+      )
+
+      def initialize(
+          results
+      )
+        @results = results
+      end
+
+      # Initializes an instance of ChildrenList from
+      # JSON-formatted data.
+      def self.from_json(json)
+        self.new(
+            json['results']#.collect { |elem| Entry.from_json(elem) },
+        )
+      end
+    end
+
     # The space quota info for a user.
     #
     # Required fields:
-    # * +quota+ (+Integer+) 
+    # * +quota+ (+Integer+)
     #   The user's total quota allocation (bytes).
-    # * +normal+ (+Integer+) 
+    # * +normal+ (+Integer+)
     #   The user's used quota outside of shared folders (bytes).
-    # * +shared+ (+Integer+) 
+    # * +shared+ (+Integer+)
     #   The user's used quota in shared folders (bytes).
     #
     # Optional fields:
-    # * +datastores+ (+Integer+) 
+    # * +datastores+ (+Integer+)
     #   The user's used quota in datastores (bytes).
     class QuotaInfo
       attr_accessor(
@@ -915,7 +1053,7 @@ module Dropbox
           :shared,
           :datastores
       )
-    
+
       def initialize(
           quota,
           normal,
@@ -927,7 +1065,7 @@ module Dropbox
         @shared = shared
         @datastores = datastores
       end
-    
+
       # Initializes an instance of QuotaInfo from
       # JSON-formatted data.
       def self.from_json(json)
@@ -939,23 +1077,23 @@ module Dropbox
         )
       end
     end
-    
+
     # Information relevant to a team.
     #
     # Required fields:
-    # * +name+ (+String+) 
+    # * +name+ (+String+)
     #   The name of the team.
     class Team
       attr_accessor(
           :name
       )
-    
+
       def initialize(
           name
       )
         @name = name
       end
-    
+
       # Initializes an instance of Team from
       # JSON-formatted data.
       def self.from_json(json)
@@ -964,26 +1102,26 @@ module Dropbox
         )
       end
     end
-    
+
     # Information for a user's account.
     #
     # Required fields:
-    # * +display_name+ (+String+) 
+    # * +display_name+ (+String+)
     #   The full name of a user.
-    # * +account_id+ (+String+) 
+    # * +account_id+ (+String+)
     #   The user's unique Dropbox ID.
-    # * +email+ (+String+) 
+    # * +email+ (+String+)
     #   The user's e-mail address.
-    # * +country+ (+String+) 
+    # * +country+ (+String+)
     #   The user's two-letter country code, if available.
-    # * +referral_link+ (+String+) 
-    #   The user's referral link.
-    # * +quota+ (+QuotaInfo+) 
+    # * +referral_link+ (+String+)
+    #   The user's referral link https://www.dropbox.com/referrals.
+    # * +quota+ (+QuotaInfo+)
     #   The user's quota.
-    # * +is_paired+ (+boolean+) 
+    # * +is_paired+ (+boolean+)
     #   Whether the user has a personal and business account.
-    # * +team+ (+Team+) 
-    #   If this paired account is a member of a team.
+    # * +team+ (+Team+)
+    #   If this account is a member of a team.
     class AccountInfo
       attr_accessor(
           :display_name,
@@ -995,7 +1133,7 @@ module Dropbox
           :is_paired,
           :team
       )
-    
+
       def initialize(
           display_name,
           account_id,
@@ -1015,7 +1153,7 @@ module Dropbox
         @is_paired = is_paired
         @team = team
       end
-    
+
       # Initializes an instance of AccountInfo from
       # JSON-formatted data.
       def self.from_json(json)
@@ -1031,15 +1169,14 @@ module Dropbox
         )
       end
     end
-    
-    
+
 
     # This class is a wrapper around the Dropbox::API::FileInfo object that
     # provides some convenience methods for manipulating files. It includes
     # methods from the Dropbox::API::FileOps module.
-    class File < FileInfo
+    class File
 
-      include FileOps
+      #include FileOps
 
       attr_accessor :client
 
@@ -1054,9 +1191,9 @@ module Dropbox
     # This class is a wrapper around the Dropbox::API::FolderInfo object that
     # provides some convenience methods for manipulating folders. It includes
     # methods from the Dropbox::API::FileOps module.
-    class Folder < FolderInfo
+    class Folder
 
-      include FileOps
+      #include FileOps
 
       attr_accessor :client
 

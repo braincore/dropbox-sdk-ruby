@@ -11,7 +11,7 @@ module Dropbox
       end
 
       def self.from_json_file(filename)
-        file = File.open(filename, 'r')
+        file = ::File.open(filename, 'r')
         contents = file.read
         file.close
 

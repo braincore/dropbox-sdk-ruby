@@ -21,7 +21,7 @@ describe Dropbox::API::WebAuth do
     it 'requires redirect_uri to be a String' do
       app_info = Dropbox::API::AppInfo.new('app_key', 'app_secret')
       expect {
-       auth = Dropbox::API::WebAuth.new(app_info, 'client_test', 0, nil, nil)
+        auth = Dropbox::API::WebAuth.new(app_info, 'client_test', 0, nil, nil)
       }.to raise_error(ArgumentError, /redirect_uri/)
     end
   end

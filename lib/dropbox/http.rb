@@ -95,7 +95,7 @@ module Dropbox
       #   it is treated as JSON. Defaults to false.
 
       # TODO check for json errors first, then look for specific body/data
-      def self.parse_response(response, is_content_endpoint)
+      def self.parse_response(response, is_content_endpoint=false)
         case response.code
         when'500'
 
@@ -180,8 +180,15 @@ module Dropbox
           fail ArgumentError, "Must use SSL to connect to Dropbox servers."
         end
 
-        path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?"\
+        if path['oauth']
+          path_and_params = "/1#{ path }?"\
             "#{ make_query_string(params) }"
+        else
+          path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?"\
+            "#{ make_query_string(params) }"
+        end
+        #path_and_params = "/#{ Dropbox::API::API_VERSION }#{ path }?"\
+        #    "#{ make_query_string(params) }"
         http_request = method.new(path_and_params)
         http_request.initialize_http_header(headers)
 

@@ -6,4 +6,3 @@ python -m babelsdk.cli example/api/v2_files.babel example/api/v2_users.babel ../
 
 cd ../dropbox-sdk-ruby
 
-./generate_docs.sh
