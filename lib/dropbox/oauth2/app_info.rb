@@ -1,5 +1,10 @@
 module Dropbox
   module API
+
+    # This class contains config info for your app, mainly its key and secret.
+    # You can create an AppInfo object using a JSON file:
+    # { "app_key" : "abcdefghij",
+    #   "app_secret" : "klmnopqrst" }
     class AppInfo
 
       attr_accessor :key, :secret, :host_info

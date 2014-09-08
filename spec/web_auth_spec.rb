@@ -1,14 +1,11 @@
 require 'spec_helper'
 
-# Missing unit test for #safe_string_equals.
-# How would you test that anyways?
-
 describe Dropbox::API::WebAuth do
 
   before(:each) do
     @session = {}
     app_info = Dropbox::API::AppInfo.new('app_key', 'app_secret')
-    @auth = Dropbox::API::WebAuth.new(app_info, 'client_test', 'redirect.com', @session, :csrf_token)
+    @auth = Dropbox::API::WebAuth.new(app_info, 'redirect.com', @session, 'client_test', :csrf_token)
   end
 
   describe '#initialize' do
@@ -18,10 +15,10 @@ describe Dropbox::API::WebAuth do
       end
     end
 
-    it 'requires redirect_uri to be a String' do
+    it 'requires a redirect_uri' do
       app_info = Dropbox::API::AppInfo.new('app_key', 'app_secret')
       expect {
-        auth = Dropbox::API::WebAuth.new(app_info, 'client_test', 0, nil, nil)
+        auth = Dropbox::API::WebAuth.new(app_info, nil, nil)
       }.to raise_error(ArgumentError, /redirect_uri/)
     end
   end
@@ -41,15 +38,6 @@ describe Dropbox::API::WebAuth do
     it 'saves the same CSRF token in session and query parameters' do
       url = @auth.start
       expect(url).to include(@session[:csrf_token])
-    end
-
-    it 'requires url_state to be a short String or nil' do
-      expect {
-        @auth.start('long string' * 20)
-      }.to raise_error(ArgumentError)
-      expect {
-        @auth.start(1)
-      }.to raise_error(ArgumentError)
     end
 
     it 'saves state parameter' do
@@ -110,7 +98,7 @@ describe Dropbox::API::WebAuth do
 
     it 'extracts user-provided state' do
       @session[:csrf_token] = 't' * Dropbox::API::WebAuth::CSRF_TOKEN_LENGTH
-      stub_body = MultiJson.dump({
+      stub_body = Oj.dump({
         'token_type' => 'bearer',
         'access_token' => 'returned_access_token',
         'uid' => 'returned_uid'
@@ -119,10 +107,14 @@ describe Dropbox::API::WebAuth do
          'state' => "#{ 't' * Dropbox::API::WebAuth::CSRF_TOKEN_LENGTH }|mystate",
          'code' => 'mycode'
       }
-      stub_request(:any, 'https://app_key:app_secret@api.dropbox.com/1/oauth2/token').to_return(status: 200, body: stub_body)
+      stub_request(:any, "https://app_key:app_secret@#{ Dropbox::API::API_SERVER }/#{ Dropbox::API::API_VERSION }/oauth2/token")
+          .with(query: {code: 'mycode', grant_type: 'authorization_code', redirect_uri: 'redirect.com'})
+          .to_return(status: 200, body: stub_body)
       access_token, uid, state = @auth.finish(params)
       expect(state).to eq('mystate')
       expect(@session[:csrf_token]).to be_nil
+      expect(access_token).to eq('returned_access_token')
+      expect(uid).to eq('returned_uid')
     end
 
     it 'throws NotApprovedError if user denies' do

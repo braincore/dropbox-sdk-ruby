@@ -1,5 +1,9 @@
 module Dropbox
   module API
+
+    # This class stores host information to be able to configure which hosts
+    # the SDK connects to. All of them will default to the real Dropbox
+    # servers.
     class HostInfo
 
       attr_accessor :web_server, :api_server, :api_content_server, :port
@@ -8,13 +12,13 @@ module Dropbox
                      api_server = nil,
                      api_content_server = nil,
                      port = nil)
-        @web_server = web_server || Dropbox::API::WEB_SERVER
-        @api_server = api_server || Dropbox::API::API_SERVER
-        @api_content_server = api_content_server ||
-            Dropbox::API::API_CONTENT_SERVER
+        @web_server = web_server || WEB_SERVER
+        @api_server = api_server || API_SERVER
+        @api_content_server = api_content_server || API_CONTENT_SERVER
         @port = port || Dropbox::API::HTTP::HTTPS_PORT
       end
 
+      # Get an instance that contains all the default hosts.
       def self.default
         @@default ||= self.new
       end
