@@ -4,10 +4,24 @@ module Dropbox
     # This is the error raised on any Dropbox server-related errors
     class DropboxError < RuntimeError; end
 
+    # This is the superlcass for errors raised on an API call, but where the
+    # error is not specific to the API endpoint.
+    class GenericAPIError < DropboxError
+      attr_accessor :http_status
+      def initialize(message, http_status)
+        super(message)
+        @http_status = http_status
+      end
+    end
+
     # The request was malformed.
     #
     # TODO add additional user_message from response body
-    class BadRequestError < DropboxError; end
+    class BadRequestError < GenericAPIError
+      def initialize(message)
+        super(message, '400')
+      end
+    end
 
     # This is the error raised on authentication failures.  Usually this means
     # one of three things:
@@ -16,16 +30,28 @@ module Dropbox
     # * Your user deauthorized the application after you stored a valid token
     #
     # TODO add machine-readable body with additional info
-    class UnauthorizedError < DropboxError; end
+    class UnauthorizedError < GenericAPIError
+      def initialize(message)
+        super(message, '401')
+      end
+    end
 
     # You are making too many requests to the Dropbox API. Look at the HTTP
     # "Retry-After" header to find out when you can start making requests
     # again.
-    class TooManyRequestsError < DropboxError; end
+    class TooManyRequestsError < GenericAPIError
+      def initialize(message)
+        super(message, '429')
+      end
+    end
 
     # The server could not complete the request because of an error on
     # Dropbox's part.
-    class ServerError < DropboxError; end
+    class ServerError < GenericAPIError
+      def initialize(message)
+        super(message, '500')
+      end
+    end
 
     # This is the superclass for errors raised for an API endpoint-specific
     # issue. It means the request was well-formed and valid, but the endpoint

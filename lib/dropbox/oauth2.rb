@@ -1,4 +1,3 @@
-require 'uri'
 require 'base64'
 
 module Dropbox

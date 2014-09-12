@@ -31,13 +31,6 @@ describe Dropbox::API::HTTP do
     end
   end
 
-  describe '.do_http_request' do
-    # This should mostly be tested by .create_http_request, minus actually making the request
-    # TODO Mock?
-  end
-
-  # Decided to test this method instead of do_http_request because it allows more fine-grained
-  # unit testing than having to make the entire http request.
   describe '.create_http_request' do
     context 'returns http_request that' do
       it 'accepts Net::HTTP::Get' do
@@ -150,9 +143,6 @@ describe Dropbox::API::HTTP do
                 'AES128-SHA256:'\
                 'AES128-SHA')
         end
-
-        # TODO add verify_callback check here?
-
       end
 
       it 'sets custom certificate file' do
@@ -178,7 +168,7 @@ describe Dropbox::API::HTTP do
       end
     end
 
-    # TODO Add Endpoint error tests?
+    # TODO Test translating HTTP response json to each EndpointError subclass
 
     it 'throws ServerError on HTTP 500' do
       response = HTTPResponseStub.new(500)

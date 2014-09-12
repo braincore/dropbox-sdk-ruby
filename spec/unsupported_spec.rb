@@ -1,51 +1,33 @@
 require 'spec_helper'
 
-=begin
-describe Dropbox::API::DropboxSessionBase do
+describe Dropbox::Session do
   describe 'class' do
     it 'should not be used' do
-      expect { Dropbox::API::DropboxSessionBase.new }.to raise_error(Dropbox::API::UnsupportedError)
+      expect { Dropbox::Session.new }.to raise_error(Dropbox::API::UnsupportedError)
     end
   end
 end
 
-describe Dropbox::API::DropboxSession do
+describe Dropbox::Revision do
   describe 'class' do
     it 'should not be used' do
-      expect { Dropbox::API::DropboxSession.new }.to raise_error(Dropbox::API::UnsupportedError)
+      expect { Dropbox::Revision.new }.to raise_error(Dropbox::API::UnsupportedError)
     end
   end
 end
 
-describe Dropbox::API::DropboxOAuth2Session do
+describe Dropbox::Event do
   describe 'class' do
     it 'should not be used' do
-      expect { Dropbox::API::DropboxOAuth2Session.new }.to raise_error(Dropbox::API::UnsupportedError)
+      expect { Dropbox::Event.new }.to raise_error(Dropbox::API::UnsupportedError)
     end
   end
 end
 
-describe Dropbox::API::DropboxOAuth2FlowBase do
+describe Dropbox::Entry do
   describe 'class' do
     it 'should not be used' do
-      expect { Dropbox::API::DropboxOAuth2FlowBase.new }.to raise_error(Dropbox::API::UnsupportedError)
+      expect { Dropbox::Entry.new }.to raise_error(Dropbox::API::UnsupportedError)
     end
   end
 end
-
-describe Dropbox::API::DropboxOAuth2Flow do
-  describe 'class' do
-    it 'should not be used' do
-      expect { Dropbox::API::DropboxOAuth2Flow.new }.to raise_error(Dropbox::API::UnsupportedError)
-    end
-  end
-end
-
-describe Dropbox::API::DropboxOAuth2FlowNoRedirect do
-  describe 'class' do
-    it 'should not be used' do
-      expect { Dropbox::API::DropboxOAuth2FlowNoRedirect.new }.to raise_error(Dropbox::API::UnsupportedError)
-    end
-  end
-end
-=end

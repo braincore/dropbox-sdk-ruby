@@ -21,12 +21,13 @@ module Dropbox
       # * +session+: An object (like the +session+ hash in Rails) that
       #   represent the current web session. This is used to save the CSRF
       #   token.
-      # * +client_identifer+: Your app's user-agent
       # * +csrf_token_session_key+: The key to use in the +session+ object
+      # * +client_identifer+: Your app's user-agent
       # * +locale+: The locale of the user currently using your app
       #   (ex: "en" or "en_US").
-      def initialize(app_info, redirect_uri, session, client_identifier = nil,
-            csrf_token_session_key = :dropbox_auth_csrf_token, locale = nil)
+      def initialize(app_info, redirect_uri, session,
+            csrf_token_session_key = :dropbox_auth_csrf_token,
+            client_identifier = nil, locale = nil)
         oauth2_init(app_info, client_identifier, locale)
 
         if redirect_uri.nil?

@@ -1,0 +1,60 @@
+=== General v2 stuff ===
+
+Update https://www.dropbox.com/developers/core/start/ruby with new
+authentication objects:
+ - WebAuth
+ - WebAuthNoRedirect
+
+Update babel documentation: Tagged union documentation is incomplete. For
+example, the Upload endpoint just says that one of the parameters is a
+WriteConflictPolicy. Doesn't say how tagged unions should be represented as
+JSON.
+
+Add partial_chunked_upload and commit_chunked_upload endpoints. If they are
+different than their v1 counterparts, update the wrapper functions in the
+client template (client.babelt.rb) accordingly.
+
+Can we rename WriteConlictPolicy.update_if_matching_parent_rev to
+WriteConflictPolicy.update?
+
+=== Ruby-SDK-specific stuff ===
+
+Error handling in parse_response in http.babelt.rb. Depending on how we define
+errors in babel, this file may or may not need to be generated from babel.
+parse_response just needs to be able to throw the correct kind of error given
+the response JSON.
+
+Error object definitions in objects.babelt.rb. Should be relatively
+straightforward. They just need their fields and a from_json method, which
+will be very similar to other objects.
+
+Error handling unit tests in http_spec.rb.
+
+Double-check the OAuth2 endpoint namespace in client.babelt.rb.
+
+Update/remove/maintain examples.
+
+Update dropbox.gemspec if necessary and README.rdoc.
+
+Anything that starts with an underscore is from the previous version of the SDK
+and is no longer needed. I just kept them around just in case.
+
+(generate_babel.sh and generate_docs.sh were simple scripts I used to generate
+babel templates and rdoc documentation. You should edit the paths in them.)
+
+I have a small feeling that requiring Oj as a JSON library (instead of MultiJson,
+the usual Ruby standard) is going to be slightly frowned upon. However, I've
+found that other JSON libraries don't serialize tagged unions like we want.
+
+Descriptions of each file:
+  http.rb:                  Assembles HTTP requests and parses responses
+  client.rb:                Contains all API client methods
+  client/session.rb:        Handles calling http.rb methods for the client
+  oauth2.rb:                Module containing common OAuth2 logic
+  web_auth.rb:              Class for the OAuth2 authorization flow; includes the OAuth2 module
+  web_auth_no_redirect.rb:  Class for the CLI OAuth2 flow; includes the OAuth2 module
+  objects.rb:               Object definitions for everything from Babel
+  error.rb:                 Contains error definitions.
+  unsupported.rb:           Detects if someone tries to use the old version of the gem
+  oauth2/app_info.rb:       Configuration object for app key, app secret, and hosts
+  client/host_info.rb:      Configuration object for hosts

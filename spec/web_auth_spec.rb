@@ -5,7 +5,7 @@ describe Dropbox::API::WebAuth do
   before(:each) do
     @session = {}
     app_info = Dropbox::API::AppInfo.new('app_key', 'app_secret')
-    @auth = Dropbox::API::WebAuth.new(app_info, 'redirect.com', @session, 'client_test', :csrf_token)
+    @auth = Dropbox::API::WebAuth.new(app_info, 'redirect.com', @session, :csrf_token, 'client_test')
   end
 
   describe '#initialize' do

@@ -30,11 +30,11 @@ gives you an "access token" for the user's Dropbox account, which grants you the
 ability to make Dropbox API calls to access their files.
 
 - Authorization example for a web app: web_file_browser.rb
-- Authorization example for a command-line tool:
+- Authorization example for a command-line tool: authorize.rb
   https://www.dropbox.com/developers/core/start/ruby
 
-Once you have an access token, create a DropboxClient instance and start making
-API calls.
+Once you have an access token, create a Dropbox::API::Client instance and start
+making API calls.
 
 You only need to perform the authorization process once per user.  Once you have
 an access token for a user, save it somewhere persistent, like in a database.
@@ -45,8 +45,54 @@ and go straight to making API calls.
 
 == Changes in 2.0.0
 
+== Tagged Unions
+
+Some of the objects in this version of the Ruby SDK are represented as tagged
+unions (http://en.wikipedia.org/wiki/Tagged_union). While some programming
+languages have native support for tagged unions, Ruby does not. Each option
+has a tag, and some options have associated values. We refer to the tags
+without values as symbol tags. (Symbol tags function similarly to enums.)
+
+Take, for example, the WriteConflictPolicy tagged union, which has three
+possible symbol tags (overwrite, reject, rename) and one tag with a value
+(update). Each tag has a class method to instantiate it; symbol tags do not
+take any arguments, while tags with values take one. To instantiate a
+WriteConflictPolicy:
+
+  WriteConflictPolicy.overwrite
+  WriteConflictPolicy.reject
+  WriteConflictPolicy.rename
+  WriteConflictPolicy.update_if_matching_parent_rev(UpdateParentRev.new(...))
+
+There are very simple methods to figure out what a tagged union's tag is, and
+also to retrieve the associated value. For example, consider the Entry tagged
+union that represents either a file or a folder. To interact with one:
+
+ # entry is an Entry object, e.g. the return value of a file info call
+ if entry.file?
+   puts entry.file.path, " is a file"
+ elsif entry.folder?
+   puts entry.folder.path, " is a folder"
+ end
+
++entry.file?+ will tell if you the tag is +file+, and +entry.file+ will
+return the File value.
+
+Tagged unions can be serialized and deserialized to/from JSON. A symbol tag,
+when serialized, is just a string.
+
+ Oj.dump(WriteConflictPolicy.overwrite, mode: :compat) # => "overwrite"
+
+A tagged union with a value uses the value's JSON representation.
+
+ Oj.dump(WriteConflictPolicy.update_if_matching_parent_rev(UpdateParentRev.new('rev1', true)))
+  # => {"update_if_matching_parent_rev":{"parent_revision":"rev1","auto_rename":true}}
+
+We use Oj for its compat[ibility] mode when dumping JSON, which is more
+versatile in recursively serializing objects.
+
 == Running the Examples
 
 There are example programs included in the tarball.  Before you can run an
-example, you need to edit the ".rb" file and put your Dropbox API app key and
-secret in the "APP_KEY" and "APP_SECRET" constants.
+example, you need to edit the +app_info.json+ file and put your Dropbox API app
+key and secret in the "APP_KEY" and "APP_SECRET" constants.

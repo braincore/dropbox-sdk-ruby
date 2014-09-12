@@ -17,14 +17,12 @@ require 'shellwords'
 #   allows them to type commands to manipulate their dropbox.
 ####
 
-# TODO take my test data out
-# TODO https://www.dropbox.com/developers/core/start/ruby mirror code
-
 # You must use your Dropbox App key and secret to use the API.
 # Find this at https://www.dropbox.com/developers
 
 class DropboxCLI
-  LOGIN_REQUIRED = %w{put get cp mv rm ls mkdir info logout search thumbnail}
+  LOGIN_REQUIRED = %w{folder_list info download upload folder_create preview
+    thumbnail copy move delete search account_info}
 
   def initialize
     begin
@@ -101,50 +99,55 @@ class DropboxCLI
     puts "You are logged out."
   end
 
-  def files_folder_list(command)
-    command[1] = '/' + clean_up(command[1] || '')
-    resp = @client.files.folder_list(command[1])
+  # Gets the list of contents for a folder
+  # > folder_list /some/path
+  def folder_list(command)
+    path = '/' + clean_up(command[1] || '')
+    resp = @client.files.folder_list(path)
 
-    if resp['contents'].length > 0
-      for item in resp['contents']
-        puts item['path']
-      end
+    resp.contents.each do |item|
+      puts item.path
     end
   end
 
-  def files_info(command)
+  # Gets metadata for a file or folder
+  # > info /some/file.txt
+  # > info /some/folder
+  def info(command)
     if !command[1] || command[1].empty?
       puts "please specify item to get"
     else
-      src = clean_up(command[1])
-      metadata = @client.files.info('/' + src)
-      puts "Metadata:"
-      pp metadata
+      path = '/' + clean_up(command[1])
+      pp @client.files.info(path)
     end
   end
 
-  def files_download(command)
-    dest = command[2]
-    if !command[1] || command[1].empty?
+  # Downloads a file and writes it locally
+  # > download /dropbox/path.txt localfile.txt
+  def download(command)
+    if command[1].nil? || command[1].empty?
       puts "please specify item to get"
-    elsif !dest || dest.empty?
+    elsif command[2].nil? || command[2].empty?
       puts "please specify full local path to dest, i.e. the file to write to"
-    elsif File.exists?(dest)
+    elsif File.exists?(command[2])
       puts "error: File #{dest} already exists."
     else
-      src = clean_up(command[1])
-      out, metadata = @client.files.download('/' + src)
-      puts "Metadata:"
+      src = '/' + clean_up(command[1])
+      dst = command[2]
+      out, metadata = @client.files.download(src)
       pp metadata
-      open(dest, 'w'){|f| f.puts out }
-      puts "wrote file #{dest}."
+      open(dst, 'w') { |f| f.puts out }
+      puts "wrote file #{ dst }."
     end
   end
 
-  def files_upload(command)
+  # Uploads a local file to Dropbox
+  # Uses the 'overwrite' conflict policy
+  # > upload localfile.txt /dropbox/path.txt
+  def upload(command)
     fname = command[1]
 
-    #If the user didn't specifiy the file name, just use the name of the file on disk
+    #If the user didn't specify the file name, just use the name of the file on disk
     if command[2]
       new_name = command[2]
     else
@@ -158,57 +161,69 @@ class DropboxCLI
     end
   end
 
-  def files_folder_create(command)
+  # Creates a folder
+  # > folder_create /new/folder
+  def folder_create(command)
     pp @client.files.folder_create(clean_up(command[1]))
   end
 
-  def files_preview(command)
-    dest = command[2]
-    command[3] ||= 'small'
-    out,metadata = @client.thumbnail_and_metadata(command[1], command[3])
-    puts "Metadata:"
+  # Gets metadata and a preview for a file
+  # > preview /dropbox/path.txt localfile.txt
+  def preview(command)
+    path = '/' + clean_up(command[1])
+    dst = command[2]
+    out, metadata = @client.files.preview(path)
     pp metadata
-    open(dest, 'w'){|f| f.puts out }
-    puts "wrote thumbnail#{dest}."
+    open(dest, 'w') { |f| f.puts out }
+    puts "wrote thumbnail #{ dst }."
   end
 
-  # Example:
-  # > thumbnail pic1.jpg ~/pic1-local.jpg large
-  def files_thumbnail(command)
-    dest = command[2]
-    command[3] ||= 'small'
-    out,metadata = @client.thumbnail_and_metadata(command[1], command[3])
-    puts "Metadata:"
+  # Gets metadata and a thumbnail for a file
+  # > thumbnail /dropbox/path.jpg localpicture.jpg
+  def thumbnail(command)
+    path = '/' + clean_up(command[1])
+    dst = command[2]
+    out, metadata = @client.files.thumbnail(path)
     pp metadata
-    open(dest, 'w'){|f| f.puts out }
-    puts "wrote thumbnail#{dest}."
+    open(dest, 'w') { |f| f.puts out }
+    puts "wrote thumbnail #{ dst }."
   end
 
-  def files_copy(command)
+  # Copies a file
+  # > copy /from/path.txt /to/path.txt
+  def copy(command)
     src = clean_up(command[1])
     dest = clean_up(command[2])
     pp @client.files.copy(src, dest)
   end
 
-  def files_move(command)
+  # Moves a file
+  # > move /from/path.txt /to/path.txt
+  def move(command)
     src = clean_up(command[1])
     dest = clean_up(command[2])
     pp @client.files.move(src, dest)
   end
 
-  def files_delete(command)
+  # Deletes a file
+  # > delete /dropbox/path.txt
+  def delete(command)
     pp @client.files.delete(clean_up(command[1]))
   end
 
-  def files_search(command)
-    resp = @client.search('/', clean_up(command[1]))
+  # Searches for files and folders with a search string in their names
+  # > search mysearchquery
+  def search(command)
+    resp = @client.files.search('/', clean_up(command[1]))
 
     for item in resp
-      puts item['path']
+      puts item.path
     end
   end
 
-  def users_info(command)
+  # Get account info for the current user
+  # > account_info
+  def account_info(command)
     pp @client.users.info('me')
   end
 

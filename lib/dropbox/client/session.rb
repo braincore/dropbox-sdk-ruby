@@ -24,7 +24,7 @@ module Dropbox
 
       def do_content_endpoint(path, args, data = nil)
         headers = @common_headers.merge({
-          'Dropbox-API-Args' => Oj.dump(args)
+          'Dropbox-API-Arg' => Oj.dump(args, mode: :compat)
         })
         Dropbox::API::HTTP.do_http_request(
             Net::HTTP::Post, @host_info.api_content_server, path,

@@ -22,41 +22,40 @@ require 'securerandom'
 require File.expand_path('../../lib/dropbox_sdk', __FILE__)
 
 # Get your app's key and secret from https://www.dropbox.com/developers/
-# and put them in app_info.json
-APP_INFO = Dropbox::API::AppInfo.from_json('app_info.json')
+APP_KEY = ''
+APP_SECRET = ''
 
 # -------------------------------------------------------------------
 # OAuth stuff
 
 def get_web_auth()
-  return Dropbox::API::WebAuth.new(APP_INFO, url('/dropbox-auth-finish'),
-                 session)
+  return DropboxOAuth2Flow.new(APP_KEY, APP_SECRET, url('/dropbox-auth-finish'),
+                 session, :dropbox_auth_csrf_token)
 end
 
 get '/dropbox-auth-start' do
   authorize_url = get_web_auth().start()
 
-  # Send the user to the Dropbox website so they can authorize our app.
-  # After the user authorizes our app, Dropbox will redirect them to our
-  # '/dropbox-auth-finish' endpoint.
+  # Send the user to the Dropbox website so they can authorize our app.  After the user
+  # authorizes our app, Dropbox will redirect them to our '/dropbox-auth-finish' endpoint.
   redirect authorize_url
 end
 
 get '/dropbox-auth-finish' do
   begin
     access_token, user_id, url_state = get_web_auth.finish(params)
-  rescue Dropbox::API::WebAuth::BadRequestError => e
+  rescue DropboxOAuth2Flow::BadRequestError => e
     return html_page "Error in OAuth 2 flow", "<p>Bad request to /dropbox-auth-finish: #{e}</p>"
-  rescue Dropbox::API::WebAuth::BadStateError => e
+  rescue DropboxOAuth2Flow::BadStateError => e
     return html_page "Error in OAuth 2 flow", "<p>Auth session expired: #{e}</p>"
-  rescue Dropbox::API::WebAuth::CsrfError => e
+  rescue DropboxOAuth2Flow::CsrfError => e
     logger.info("/dropbox-auth-finish: CSRF mismatch: #{e}")
     return html_page "Error in OAuth 2 flow", "<p>CSRF mismatch</p>"
-  rescue Dropbox::API::WebAuth::NotApprovedError => e
+  rescue DropboxOAuth2Flow::NotApprovedError => e
     return html_page "Not Approved?", "<p>Why not, bro?</p>"
-  rescue Dropbox::API::WebAuth::ProviderError => e
+  rescue DropboxOAuth2Flow::ProviderError => e
     return html_page "Error in OAuth 2 flow", "Error redirect from Dropbox: #{e}"
-  rescue Dropbox::API::DropboxError => e
+  rescue DropboxError => e
     logger.info "Error getting OAuth 2 access token: #{e}"
     return html_page "Error in OAuth 2 flow", "<p>Error getting access token</p>"
   end
@@ -75,7 +74,7 @@ end
 # If we already have an authorized DropboxSession, returns a DropboxClient.
 def get_dropbox_client
   if session[:access_token]
-    return Dropbox::API::Client.new(session[:access_token])
+    return DropboxClient.new(session[:access_token])
   end
 end
 
@@ -92,20 +91,24 @@ get '/' do
   # Call DropboxClient.metadata
   path = params[:path] || '/'
   begin
-    entry = client.files.info(path)
-  rescue Dropbox::API::UnauthorizedError => e
+    entry = client.metadata(path)
+  rescue DropboxAuthError => e
     session.delete(:access_token)  # An auth error means the access token is probably bad
     logger.info "Dropbox auth error: #{e}"
     return html_page "Dropbox auth error"
-  rescue Dropbox::API::DropboxError => e
-    logger.info "Dropbox API error: #{e}"
-    return html_page "Dropbox API error"
+  rescue DropboxError => e
+    if e.http_response.code == '404'
+      return html_page "Path not found: #{h path}"
+    else
+      logger.info "Dropbox API error: #{e}"
+      return html_page "Dropbox API error"
+    end
   end
 
-  if entry.folder?
-    render_folder(client, entry.folder)
-  elsif entry.file?
-    render_file(client, entry.file)
+  if entry['is_dir']
+    render_folder(client, entry)
+  else
+    render_file(client, entry)
   end
 end
 
@@ -117,11 +120,11 @@ def render_folder(client, entry)
   out += "<input name='folder' type='hidden' value='#{h entry['path']}'/>"
   out += "</form>"  # TODO: Add a token to counter CSRF attacks.
   # List of folder contents
-  entry.contents.each do |child|
-    path = child.path
-    name = File.basename(cp)
-    name += '/' if child.folder?
-    out += "<div><a style='text-decoration: none' href='/?path=#{h path}'>#{h name}</a></div>"
+  entry['contents'].each do |child|
+    cp = child['path']      # child path
+    cn = File.basename(cp)  # child name
+    if (child['is_dir']) then cn += '/' end
+    out += "<div><a style='text-decoration: none' href='/?path=#{h cp}'>#{h cn}</a></div>"
   end
 
   html_page "Folder: #{entry['path']}", out
@@ -129,7 +132,7 @@ end
 
 def render_file(client, entry)
   # Just dump out metadata hash
-  html_page "File: #{ entry.path }", "<pre>#{h entry.pretty_inspect}</pre>"
+  html_page "File: #{entry['path']}", "<pre>#{h entry.pretty_inspect}</pre>"
 end
 
 # -------------------------------------------------------------------
@@ -150,12 +153,12 @@ post '/upload' do
 
   # Call DropboxClient.put_file
   begin
-    entry = client.files.upload("#{params[:folder]}/#{name}", temp_file.read)
-  rescue Dropbox::API::UnauthorizedError => e
+    entry = client.put_file("#{params[:folder]}/#{name}", temp_file.read)
+  rescue DropboxAuthError => e
     session.delete(:access_token)  # An auth error means the access token is probably bad
     logger.info "Dropbox auth error: #{e}"
     return html_page "Dropbox auth error"
-  rescue Dropbox::API::DropboxError => e
+  rescue DropboxError => e
     logger.info "Dropbox API error: #{e}"
     return html_page "Dropbox API error"
   end
@@ -166,9 +169,9 @@ end
 # -------------------------------------------------------------------
 
 def html_page(title, body='')
-  "<html>"\
-    "<head><title>#{h title}</title></head>"\
-    "<body><h1>#{h title}</h1>#{body}</body>"\
+  "<html>" +
+    "<head><title>#{h title}</title></head>" +
+    "<body><h1>#{h title}</h1>#{body}</body>" +
   "</html>"
 end
 
@@ -182,4 +185,9 @@ enable :sessions
 helpers do
   include Rack::Utils
   alias_method :h, :escape_html
+end
+
+if APP_KEY == '' or APP_SECRET == ''
+  puts "You must set APP_KEY and APP_SECRET at the top of \"#{__FILE__}\"!"
+  exit 1
 end

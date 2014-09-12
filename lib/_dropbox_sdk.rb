@@ -1,11 +1,11 @@
-require 'uri'
-require 'net/https'
-require 'cgi'
-require 'json'
-require 'yaml'
-require 'base64'
-require 'securerandom'
-require 'pp'
+#require 'uri'
+#require 'net/https'
+#require 'cgi'
+#require 'json'
+#require 'yaml'
+#require 'base64'
+#require 'securerandom'
+#require 'pp'
 
 module Dropbox # :nodoc:
   API_SERVER = "api.dropbox.com"

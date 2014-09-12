@@ -10,11 +10,10 @@ require_relative '../lib/dropbox/web_auth'
 require_relative '../lib/dropbox/web_auth_no_redirect'
 require_relative '../lib/dropbox/oauth2/app_info'
 require_relative '../lib/dropbox/client/host_info'
-#require_relative '../lib/dropbox/file_ops'
+require_relative '../lib/dropbox/client/session'
 require_relative '../lib/dropbox/objects'
 
-require 'support/fileops_shared'
-require 'support/oauth2_shared'
+require_relative 'support/oauth2_shared'
 
 def make_hash(query)
   result = {}

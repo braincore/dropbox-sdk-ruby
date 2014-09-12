@@ -8,7 +8,6 @@ require_relative '../lib/dropbox'
 require_relative '../lib/dropbox/http'
 require_relative '../lib/dropbox/error'
 require_relative '../lib/dropbox/objects'
-require_relative '../lib/dropbox/file_ops'
 require 'pp'
 require 'shellwords'
 
@@ -18,9 +17,6 @@ require 'shellwords'
 #   that prompts a user to authenticate on the web, then
 #   allows them to type commands to manipulate their dropbox.
 ####
-
-# TODO take my test data out
-# TODO https://www.dropbox.com/developers/core/start/ruby mirror code
 
 # You must use your Dropbox App key and secret to use the API.
 # Find this at https://www.dropbox.com/developers
@@ -121,6 +117,10 @@ class DropboxCLI
     puts "You are logged out."
   end
 
+  def users_info(command)
+    pp @client.users.info('me')
+  end
+
   def files_folder_list(command)
     pp @client.files.folder_list('/', false, false)
   end
@@ -145,10 +145,6 @@ class DropboxCLI
 
   def files_search(command)
     pp @client.files.search('query')
-  end
-
-  def users_info(command)
-    pp @client.users.info('me')
   end
 
   def files_preview(command)

@@ -5,13 +5,12 @@
 Gem::Specification.new do |s|
   s.name = 'dropbox'
 
-  s.version = '1.6.4' # TODO: put version info in its own file
+  s.version = '2.0.0'
   s.license = 'MIT'
 
   s.authors = ['Dropbox, Inc.']
   s.email = ['support-api@dropbox.com']
 
-  #s.add_runtime_dependency 'multi_json'
   s.add_runtime_dependency 'oj'
 
   s.add_development_dependency 'rspec', '~> 2.2'
@@ -24,10 +23,10 @@ Gem::Specification.new do |s|
     Dropbox API web endpoints.
   EOF
 
-  s.files = [ # TODO specify file list. use git ls-files?
+  s.files = [
     'CHANGELOG',
     'LICENSE',
-    'README',
+    'README.rdoc',
     'examples/cli_example.rb',
     'examples/dropbox_controller.rb',
     'examples/web_file_browser.rb',
@@ -38,8 +37,15 @@ Gem::Specification.new do |s|
     'lib/dropbox.rb',
     'lib/trusted-certs.crt',
     'lib/dropbox/client.rb',
+    'lib/dropbox/client/host_info.rb',
+    'lib/dropbox/client/session.rb',
     'lib/dropbox/error.rb',
+    'lib/dropbox/http.rb',
+    'lib/dropbox/oauth2.rb',
+    'lib/dropbox/oauth2/app_info.rb',
+    'lib/dropbox/objects.rb',
     'lib/dropbox/unsupported.rb',
-    'lib/dropbox/objects/file.rb'
+    'lib/dropbox/web_auth.rb',
+    'lib/dropbox/web_auth_no_redirect.rb',
   ]
 end

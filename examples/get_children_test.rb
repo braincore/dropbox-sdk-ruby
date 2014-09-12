@@ -8,7 +8,6 @@ require_relative '../lib/dropbox'
 require_relative '../lib/dropbox/http'
 require_relative '../lib/dropbox/error'
 require_relative '../lib/dropbox/objects'
-require_relative '../lib/dropbox/file_ops'
 require 'pp'
 require 'shellwords'
 
@@ -32,6 +31,7 @@ class DropboxCLI
   def initialize
     begin
       @app_info = Dropbox::API::AppInfo.new('82yyfwr3bb64v0r', 'glxxoknkavqyslb')
+      #@app_info = Dropbox::API::AppInfo.new('obbz2k49as22n3h', 'a0mh9hok45gi2th')
       if @app_info.key == '' || @app_info.secret == ''
         fail
       end
@@ -60,6 +60,7 @@ class DropboxCLI
       auth_code = STDIN.gets.strip
 
       #access_token, user_id = web_auth.finish(auth_code)
+      #access_token = 'a4ayc_80_OEAAAAAAAAAWgM56GDj2_tV_3lFVGv6k-jF77kF_2yEamKOm-tLqRdb'
       access_token = 'a4ayc_80_OEAAAAAAAAAUtFOp8ApizZpUEX6nlDF3qCLX6QLAHWefqnTBoeJvryB'
       user_id = 1
 
@@ -109,7 +110,7 @@ class DropboxCLI
   end
 
   def get(command)
-    pp @client.files.get_children(command[1])
+    pp @client.files.get_descendants(command[1])
   end
 
   def info(command)
